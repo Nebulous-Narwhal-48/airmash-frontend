@@ -1137,6 +1137,29 @@ Games.wipe = function() {
  * GAME_FLAG message handler
  */
 Games.networkFlag = function(msg) {
+
+    if (game.gameType == GameType.FFA && !ctf.flagRed) {
+        ctf.flagRed = {
+            visible: false,
+            playerId: null,
+            direction: 1,
+            diffX: 0,
+            momentum: 0,
+            position: Vector.zero(),
+            basePos: new Vector(8602,-944),
+            sprite: Textures.init('ctfFlagRed', {
+                scale: 0.4,
+                visible: false
+            }),
+            spriteShadow: Textures.init('ctfFlagShadow', {
+                scale: 0.4 * 1.1,
+                visible: false
+            }),
+            minimapSprite: Textures.init('minimapFlagRed'),
+            minimapBase: Textures.init('minimapBaseRed')
+        };
+    }
+
     // Check if this is a blue (1) or red (2) team flag
     let flag, selector, flagCaptures;
     if (msg.flag == 1) {
@@ -1189,13 +1212,16 @@ Games.networkFlag = function(msg) {
     }
 
     updateCtfFlag(flag, false);
+
+    game.flagEnabled = true;
 };
 
 var updateCtfFlag = function(flag, isResize) {
     // If window is being resized, redraw minimap
-    if(isResize) {
+    if(isResize && game.flagEnabled) {
         Graphics.minimapMob(flag.minimapSprite, flag.position.x, flag.position.y);
-        Graphics.minimapMob(flag.minimapBase, flag.basePos.x, flag.basePos.y);
+        if (game.gameType == GameType.CTF)
+            Graphics.minimapMob(flag.minimapBase, flag.basePos.x, flag.basePos.y);
     }
 
     if(flag.playerId != null) {
@@ -1558,5 +1584,12 @@ Games.update = function(isResize) {
                 Games.popFirewall(firewall.pos, firewall.radius);
             }
             break;
+            case GameType.FFA:
+                if (ctf.flagBlue) 
+                    updateCtfFlag(ctf.flagBlue, isResize);
+                if (ctf.flagRed)
+                    updateCtfFlag(ctf.flagRed, isResize);
+                break;
+
     }
 };
