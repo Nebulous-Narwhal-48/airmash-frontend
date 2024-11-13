@@ -202,7 +202,7 @@ class Player {
     }
 
     nameplateTextStyle() {
-        if (2 == game.gameType)
+        if (2 == game.gameType || game.server.config.tdmMode)
             var e = 1 == this.team ? "#4076E2" : "#EA4242";
         else
             e = this.team == game.myTeam ? "#FFFFFF" : "#FFEC52";

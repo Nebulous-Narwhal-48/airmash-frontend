@@ -1105,6 +1105,16 @@ Games.prep = function() {
             $('#gamespecific').html('');
             UI.show('#gamespecific');
             break;
+
+        case GameType.FFA:
+            if (game.server.config.tdmMode) {
+                $('#gamespecific').html(
+                    '<div id="blueflag-name" class="blueflag-player" style="color: #4076E2">0</div>' + 
+                    '<div id="redflag-name" class="redflag-player" style="color: #EA4242">0</div>'
+                    );
+                UI.show('#gamespecific');
+            }
+            break;
     }    
 };
 
@@ -1559,4 +1569,10 @@ Games.update = function(isResize) {
             }
             break;
     }
+};
+
+Games.updateTdmScore = function(blue_score, red_score) {
+    if (!game.server.config.tdmMode) return;
+    $('#blueflag-name').html(`<span class="rounds">${blue_score}</span>`);
+    $('#redflag-name').html(`<span class="rounds">${red_score}</span>`);
 };
