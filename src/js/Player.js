@@ -197,15 +197,29 @@ class Player {
 
     reteam(e) {
         this.team = e;
-        this.sprites.name.style = new PIXI.TextStyle(this.nameplateTextStyle());
-        UI.changeMinimapTeam(this.id, this.team);
+        if (GameType.CTF == game.gameType) {
+            this.sprites.name.style = new PIXI.TextStyle(this.nameplateTextStyle());
+            UI.changeMinimapTeam(this.id, this.team);
+        } else {
+            if (this.me()) {
+                game.myTeam = this.team;
+            }
+            Players.updateFFATeams();
+        }
     }
 
     nameplateTextStyle() {
         if (2 == game.gameType)
             var e = 1 == this.team ? "#4076E2" : "#EA4242";
-        else
-            e = this.team == game.myTeam ? "#FFFFFF" : "#FFEC52";
+        else {
+            if (this.in_my_team) {
+                e = "#4076E2";
+            } else if (this.in_team) {
+                e = this.in_team;
+            } else {
+                e = this.team == game.myTeam ? "#FFFFFF" : "#FFEC52";
+            }
+        }
         return {
             fontFamily: "MontserratWeb, Helvetica, sans-serif",
             fontSize: (33 * config.airmashRefugees.fontSizeMul) + "px",
@@ -405,6 +419,11 @@ class Player {
     }
 
     destroy(maybeFullDestroy) {
+        if (maybeFullDestroy && GameType.FFA == game.gameType) {
+            // this will destroy the team if only one member remains
+            this.reteam();
+        }
+        
         var layer = this.me() ? game.graphics.layers.aircraftme : game.graphics.layers.aircraft;
 
         layer.removeChild(this.sprites.sprite);

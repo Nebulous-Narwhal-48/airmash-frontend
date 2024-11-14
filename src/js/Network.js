@@ -228,6 +228,7 @@ var dispatchIncomingMessage = function(msg) {
                 player.isBot = botIds.includes(player.id);
                 Players.add(player, true);
             }
+            Players.updateFFATeams();
             break;
         case ServerPacket.ERROR:
             UI.errorHandler(msg);

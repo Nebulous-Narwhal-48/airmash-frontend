@@ -441,8 +441,16 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
 
         let playerNameClass = '';
         let playerScoreClass = '';
+        let playerNameColor = '';
         if (GameType.CTF == game.gameType) {
             playerNameClass = " team-" + player.team
+        } else if (GameType.FFA == game.gameType) {
+            if (player.in_team) {
+                if (player.in_my_team)
+                    playerNameClass = " team-1";
+                else
+                    playerNameColor = `color: ${player.in_team} !important`;
+            }
         }
 
         let placeCssClass = '';
@@ -463,7 +471,7 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
                 '</span>' +
                 '<span class="flag small flag-' + player.flag + '" ' +
                     'title="' + getFlagLabel(player.flag) + '"></span>' +
-                '<span class="nick' + playerNameClass + '">' +
+                    `<span class="nick ${playerNameClass}" style="${playerNameColor}">` +
                     UI.escapeHTML(Tools.mungeNonAscii(player.name, player.id)) +
                 '</span>'
         );
@@ -594,6 +602,18 @@ UI.parseCommand = function(chatInput) {
         }
     } else if("emotes" === command) {
         UI.addChatMessage("Emotes available: /tf /pepe /clap /lol /bro /kappa /cry /rage", true);
+    } else if ("invite" === command) {
+        if(null == (player = Players.getByName(unescapePlayerName(words.slice(1).join(" "))))) {
+            UI.addChatMessage("Unknown player");
+        } else {
+            Network.sendCommand("invite", player.id + "");
+        }
+    } else if ("join" === command) {
+        if(null == (player = Players.getByName(unescapePlayerName(words.slice(1).join(" "))))) {
+            UI.addChatMessage("Unknown player");
+        } else {
+            Network.sendCommand("join", player.id + "");
+        }
     } else if("help" === command) {
         UI.toggleHelp();
     } else if(!("debug" === command)) {

@@ -286,3 +286,30 @@ Players.wipe = function() {
 Players.all = function() { // SPATIE
     return playersById;
 };
+
+Players.playersByTeam = function() {
+    let teams = {};
+    for (let [id, player] of Object.entries(Players.all())) {
+        teams[player.team] = (teams[player.team] || []).concat(player);
+    }
+    return teams;
+};
+
+Players.updateFFATeams = function() {
+    if (GameType.FFA != game.gameType) 
+        return;
+    let teams = Players.playersByTeam();
+    for (let team in teams) {
+        let players = teams[team];
+        for (let player of players) {
+            let {in_team:prev_in_team, in_my_team:prev_in_my_team} = player;
+            player.in_team = players.length > 1 && Games.assign_team_color(player.team) || Games.unassign_team_color(player.team);
+            player.in_my_team =  player.in_team && player.team == game.myTeam;
+
+            if (player.in_team != prev_in_team || player.in_my_team != prev_in_my_team) {
+                player.sprites.name.style = new PIXI.TextStyle(player.nameplateTextStyle());
+                UI.changeMinimapTeam(player.id, player.in_my_team ? 1 : player.team);
+            }
+        }                
+    }
+};

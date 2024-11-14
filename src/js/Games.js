@@ -1560,3 +1560,22 @@ Games.update = function(isResize) {
             break;
     }
 };
+
+const team_colors = ["#e6194b", "#3cb44b", "#ffe119", "#f58231", "#911eb4", "#46f0f0", "#f032e6",  "#bcf60c", "#008080"];
+let assigned_team_colors = {};
+Games.assign_team_color = function(team) {
+    if (assigned_team_colors[team]) {
+        return assigned_team_colors[team];
+    } else {
+        let available = team_colors.filter(x => !Object.values(assigned_team_colors).includes(x));
+        if (!available.length)
+            available = team_colors;
+        const color = available[Math.floor(Math.random()*available.length)];
+        assigned_team_colors[team] = color;
+        return color;
+    }
+};
+
+Games.unassign_team_color = function(team) {
+    assigned_team_colors[team] = null;
+};
