@@ -116,6 +116,8 @@ class Player {
             this.state.baseScale = .25;
             this.state.nameplateDist = 60;
             this.sprites.sprite = Textures.init("shipRaptor", propOverrides);
+            if (this.skin)
+                this.changeSkin(this.skin.url, this.skin.hash);
             this.sprites.shadow = Textures.init("shipRaptorShadow", {
                 scale: this.state.baseScale * (2.4 / config.shadowScaling)
             });
@@ -127,6 +129,8 @@ class Player {
             this.state.baseScale = .35;
             this.state.nameplateDist = 60;
             this.sprites.sprite = Textures.init("shipSpirit", propOverrides);
+            if (this.skin)
+                this.changeSkin(this.skin.url, this.skin.hash);
             this.sprites.shadow = Textures.init("shipSpiritShadow", {
                 scale: this.state.baseScale * (2.4 / config.shadowScaling)
             });
@@ -141,6 +145,8 @@ class Player {
             this.state.baseScale = .25;
             this.state.nameplateDist = 60;
             this.sprites.sprite = Textures.init("shipComanche", propOverrides);
+            if (this.skin)
+                this.changeSkin(this.skin.url, this.skin.hash);
             this.sprites.rotor = Textures.init("shipComancheRotor", propOverrides);
             this.sprites.shadow = Textures.init("shipComancheShadow", {
                 scale: this.state.baseScale * (2.4 / config.shadowScaling)
@@ -153,6 +159,8 @@ class Player {
             this.state.baseScale = .28;
             this.state.nameplateDist = 60;
             this.sprites.sprite = Textures.init("shipTornado", propOverrides);
+            if (this.skin)
+                this.changeSkin(this.skin.url, this.skin.hash);
             this.sprites.shadow = Textures.init("shipTornadoShadow", {
                 scale: this.state.baseScale * (2.4 / config.shadowScaling)
             });
@@ -167,6 +175,8 @@ class Player {
             this.state.baseScale = .28;
             this.state.nameplateDist = 60;
             this.sprites.sprite = Textures.init("shipProwler", propOverrides);
+            if (this.skin)
+                this.changeSkin(this.skin.url, this.skin.hash);
             this.sprites.shadow = Textures.init("shipProwlerShadow", {
                 scale: this.state.baseScale * (2.4 / config.shadowScaling)
             });
@@ -686,6 +696,104 @@ class Player {
 
     changeBadge(e) {
         this.sprites.badge.texture = Textures.get(e)
+    }
+
+    static async fetch_skin(url) {
+        try {
+            console.log('fetching skin', url);
+            // uses free-tier cloudflare worker to bypass CORS (please do not abuse it)
+            const buffer = await fetch(`https://curly-hall-3ffc.yenel84660.workers.dev?url=${encodeURIComponent(url)}`).then(res=>res.arrayBuffer());
+            const base64String = btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+            const dataURL = "data:image/png;base64," + base64String;
+    
+            let {w, h} = await new Promise( (resolve, reject) => {
+                const img = new Image();
+                img.onload = function() {
+                    resolve({w: img.width, h: img.height});
+                };
+                img.onerror = reject;
+                img.src = dataURL;
+            });
+    
+            const hashBuffer = await window.crypto.subtle.digest("SHA-1", buffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray
+              .map((b) => b.toString(16).padStart(2, "0"))
+              .join("");
+            
+            return { dataURL, w, h, hashHex, byteLength: buffer.byteLength };
+    
+        } catch (e) {
+            console.error(e);
+            return {};
+        }
+    }
+
+    static async load_skin(aircraft, url, hash) {
+        const sizes = {
+            [PlaneType.Predator]: {w: 256, h: 256},
+            [PlaneType.Goliath]: {w: 512, h: 256},
+            [PlaneType.Mohawk]: {w: 128, h: 256},
+            [PlaneType.Tornado]: {w: 256, h: 256},
+            [PlaneType.Prowler]: {w: 256, h: 256},
+        };
+    
+        const cache_key = url;
+        let cache = await caches.open('skin_cache');
+        let res = await cache.match(cache_key);
+        if (res) {
+            const {dataURL, w, h} = await res.json();
+    
+            if (w !== sizes[aircraft].w || h !== sizes[aircraft].h) {
+                return;
+            }
+    
+            return dataURL;
+        }
+        if (!res) {
+            const { dataURL, w, h, hashHex, byteLength } = await this.fetch_skin(url);
+    
+            if (!dataURL)
+                return;
+    
+            // check hash
+            if (hashHex != hash) {
+                console.error(`server hash:${hash} != client hash ${hashHex}`);
+                return;
+            }
+
+            if (byteLength > config.skins.MAX_IMG_BYTES[w]) {
+                console.error(`Image too big: ${byteLength} > ${config.skins.MAX_IMG_BYTES[w]}`);
+                return;
+            }
+
+            await cache.put(cache_key, new Response(JSON.stringify({dataURL, w, h})));
+    
+            if (w !== sizes[aircraft].w || h !== sizes[aircraft].h) {
+                return;
+            }
+    
+            return dataURL;        
+        }
+    }
+
+    // called by Network handleCustomMessage after receiving SERVER_CUSTOM packet
+    async changeSkin(url, hash) {
+        const player = this;
+        player.skin = {url, hash};
+        const dataURL = await Player.load_skin(player.type, url, hash);
+        if (!dataURL)
+            return;
+    
+        let layer = player.me() ? game.graphics.layers.aircraftme : game.graphics.layers.aircraft;
+        layer.removeChild(player.sprites.sprite);
+        
+        const texture = new PIXI.Texture.fromImage(dataURL);
+        let sprite = new PIXI.Sprite(texture);
+        sprite.anchor.set(0.5, 0.6);
+        let container = layer; //game.graphics.layers.aircraftme;
+        container.addChild(sprite);
+        player.sprites.sprite = sprite;
     }
 
     updateNameplate() {

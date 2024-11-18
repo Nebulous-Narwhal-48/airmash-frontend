@@ -367,6 +367,28 @@ var handleCustomMessage = function(msg) {
         case 100:
             showSwitchGameSuggestion(parsedData);
             break;
+        case 200:
+            // see server/responses/broadcast/custom-data.ts
+            const { player_id, custom_data } = parsedData;
+            if (custom_data.url) {
+                const player = Players.get(player_id);
+                player.changeSkin(custom_data.url, custom_data.hash);
+            }
+            break;
+        case 201:
+            // see server/responses/broadcast/custom-data.ts
+            const { players, skins } = parsedData;
+            if (players) {
+                for (let {id, custom_data} of players) {
+                    if (custom_data.url) {
+                        const player = Players.get(id);
+                        player.changeSkin(custom_data.url, custom_data.hash);
+                    }
+                }
+            } else if (skins) {
+                localStorage.setItem("my_skins", JSON.stringify(skins));
+            }
+            break;
     }
 };
 
@@ -434,11 +456,19 @@ Network.setup = function() {
     backupSock && backupSockIsConnected && backupSock.close(),
     (primarySock = new WebSocket(currentSockUrl)).binaryType = "arraybuffer",
     primarySock.onopen = function() {
+        let session = {};
+        if (config.auth.tokens && config.auth.tokens.game) {
+            session.token = config.auth.tokens.game;
+        }
+        if (true) {
+            const my_skins = localStorage.getItem('my_skins');
+            session.custom_data = {url:game.skin, my_skins_len: my_skins && JSON.parse(my_skins).length};
+        }
         sendMessageDict({
             c: ClientPacket.LOGIN,
             protocol: game.protocol,
             name: game.myName,
-            session: (config.auth.tokens && config.auth.tokens.game) ? JSON.stringify({token: config.auth.tokens.game}) : "none",
+            session: JSON.stringify(session), //"none",
             horizonX: Math.ceil(game.halfScreenX / game.scale),
             horizonY: Math.ceil(game.halfScreenY / game.scale),
             flag: game.myFlag.toUpperCase()

@@ -57,6 +57,10 @@ window.game = {
 };
 
 window.config = {
+    skins: {
+        MAX_URL_LENGTH: 60,
+        MAX_IMG_BYTES: {512:25000, 256:18000, 128:12000},
+    },
     airmashRefugees: {
         // Multiply all sprite font sizes (for blind people)
         fontSizeMul: 1.0,

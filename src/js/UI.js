@@ -1,4 +1,5 @@
 import 'perfect-scrollbar/jquery';
+import Player from './Player';
 
 var minimapMobs = {},
     ignoredPlayerIdSet = {},
@@ -594,6 +595,43 @@ UI.parseCommand = function(chatInput) {
         }
     } else if("emotes" === command) {
         UI.addChatMessage("Emotes available: /tf /pepe /clap /lol /bro /kappa /cry /rage", true);
+    } else if ("skin" === command) {
+        let [, cmd, url, ...player_name] = words;
+        player_name = player_name.join(" ");
+        const player = player_name && Players.getByName(unescapePlayerName(player_name));
+        if(player_name && !player) {
+            UI.addChatMessage("Unknown player");
+        } else if (cmd != "add" && cmd != "remove" && cmd != "transfer") {
+            UI.addChatMessage("Unknown subcommand");
+        } else {
+            const MAX_URL_LENGTH = config.skins.MAX_URL_LENGTH;
+            const MAX_IMG_BYTES = config.skins.MAX_IMG_BYTES;
+            (async ()=>{
+                if (url.length > MAX_URL_LENGTH) {
+                    UI.addChatMessage("Image url too long");
+                    return;
+                }
+
+                const { dataURL, w, h, byteLength, hashHex } = await Player.fetch_skin(url);
+                
+                if (!dataURL) {
+                    UI.addChatMessage("Invalid image");
+                    return;
+                }
+
+                if (h !== 256 || (w !== 512 && w !== 256 && w !== 128)) {
+                    UI.addChatMessage("Invalid image dimensions");
+                    return;
+                }
+
+                if (byteLength > MAX_IMG_BYTES[w]) {
+                    UI.addChatMessage(`Image too big: ${byteLength} > ${MAX_IMG_BYTES[w]}`);
+                    return;
+                }
+
+                Network.sendCommand("skin", JSON.stringify({cmd, url, hash:hashHex, player_id: player&&player.id}));
+            })();
+        }
     } else if("help" === command) {
         UI.toggleHelp();
     } else if(!("debug" === command)) {
