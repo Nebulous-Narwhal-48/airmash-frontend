@@ -346,7 +346,7 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
                     livePlayerIdSet[player.id] = true;
                     if (null == minimapMobs[msgRankings[i].id]) {
                         var mobTextureName = "minimapMob";
-                        if (GameType.CTF == game.gameType && 1 == player.team) {
+                        if ((GameType.CTF == game.gameType || game.server.config.tdmMode) && 1 == player.team) {
                             mobTextureName = "minimapBlue";
                         }
                         minimapMobs[msgRankings[i].id] = {
@@ -408,6 +408,7 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
     var playerRank = 0;
     var isEndOfScoreboard = false;
     var html = "";
+    let teamScore = [, 0, 0];
 
     for (var i = 0; i < maxScoreboard && !isEndOfScoreboard; i++) {
         if (!(player = Players.get(msgData[i].id))) {
@@ -442,8 +443,9 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
 
         let playerNameClass = '';
         let playerScoreClass = '';
-        if (GameType.CTF == game.gameType) {
-            playerNameClass = " team-" + player.team
+        if (GameType.CTF == game.gameType || game.server.config.tdmMode) {
+            playerNameClass = " team-" + player.team;
+            teamScore[player.team] += curPlayerScore;
         }
 
         let placeCssClass = '';
@@ -489,6 +491,9 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
     }
     
     $("#scoreboard").html(html);
+
+    if (game.server.config.tdmMode)
+        Games.updateTdmScore(teamScore[1], teamScore[2]);
 };
 
 var wrapCharsInSpans = function (str) {

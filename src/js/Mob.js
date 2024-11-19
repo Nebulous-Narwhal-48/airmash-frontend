@@ -114,7 +114,7 @@ class Mob {
     }
 
     setTeamColourOnMissiles() {
-        if (game.gameType == GameType.CTF) {
+        if (game.gameType == GameType.CTF || game.server.config.tdmMode) {
             switch (this.type) {
                 case MobType.PredatorMissile:
                 case MobType.TornadoSingleMissile:
