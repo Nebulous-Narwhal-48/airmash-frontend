@@ -50,7 +50,7 @@
             <div id="logout">
                 &nbsp;
             </div>
-            <div id="logon">
+            <div id="logon" style="height: 320px">
                 <div class="logo">
                 </div><input id="playername" type="text" autofocus=""
                 autocomplete="off" spellcheck="false" placeholder=
@@ -58,6 +58,27 @@
                 <div class="playoptions">
                     <div class="hoverable" id="playregion"></div>
                     <div class="hoverable" id="playtype"></div>
+                    <style>
+                        #logon .playoptions {
+                            height: 80px;
+                        }
+
+                        #logon .playoptions #skin {
+                            position: absolute;
+                            left: 0px;
+                            top: 50px;
+                            width: 190px;
+                            height: 40px;
+                            border-radius: 5px;
+                            border-bottom: 2px solid #141414;
+                            background-color: #1e1e1e;
+                            color: #d2d2d2;
+                            box-sizing: border-box;
+                            box-shadow: 0 0 16px 0 rgba(0, 0, 0, 0.6);
+                            cursor: default
+                        }
+                    </style>
+                    <div class="hoverable" id="skin"></div>
                 </div>
                 <div class="buttons">
                     <span id="playbutton">PLAY AS GUEST</span>

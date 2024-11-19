@@ -241,6 +241,7 @@ Graphics.initSprite = function(name, container, properties) {
 };
 
 Graphics.transform = function(container, xPos, yPos, rot, xScale, yScale, alpha) {
+    if (!container) return;
     container.position.set(xPos, yPos),
     null != yScale ? container.scale.set(xScale, yScale) : null != xScale && container.scale.set(xScale),
     null != rot && (container.rotation = rot),
