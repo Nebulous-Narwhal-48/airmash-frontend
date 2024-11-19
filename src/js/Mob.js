@@ -137,6 +137,25 @@ class Mob {
 
                     break;
             }
+        } else if (game.gameType == GameType.FFA) {
+            switch (this.type) {
+                case MobType.PredatorMissile:
+                case MobType.TornadoSingleMissile:
+                case MobType.TornadoTripleMissile:
+                case MobType.ProwlerMissile:
+                case MobType.GoliathMissile:
+                case MobType.MohawkMissile:
+                    if (this.ownerId) {
+                        let owner = Players.get(this.ownerId);
+                        if (owner && owner.in_my_team) {
+                            this.sprites.smokeGlow.tint = 
+                            this.sprites.sprite.tint = 
+                            this.sprites.thruster.tint = 0x3232FA;
+                        }
+                    }
+
+                    break;
+            }
         }
     }
 
