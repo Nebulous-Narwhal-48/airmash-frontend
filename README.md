@@ -1,3 +1,7 @@
+>*Notes about this fork
+>
+>See https://github.com/Nebulous-Narwhal-48/ab-server
+
 [![Build Status](https://dev.azure.com/airmash/airmash/_apis/build/status/airmash-refugees.airmash-frontend?branchName=master)](https://dev.azure.com/airmash/airmash/_build/latest?definitionId=2&branchName=master)
 
 # airmash-frontend
