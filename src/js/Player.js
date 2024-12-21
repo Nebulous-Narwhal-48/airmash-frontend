@@ -207,7 +207,7 @@ class Player {
 
     reteam(e) {
         this.team = e;
-        if (GameType.CTF == game.gameType || game.server.config.tdmMode) {
+        if (GameType.CTF == game.gameType || game.server.config?.tdmMode) {
             this.sprites.name.style = new PIXI.TextStyle(this.nameplateTextStyle());
             UI.changeMinimapTeam(this.id, this.team);
         } else {

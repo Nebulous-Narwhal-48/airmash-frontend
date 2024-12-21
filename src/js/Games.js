@@ -1264,6 +1264,7 @@ Games.networkFlag = function(msg) {
             minimapSprite: Textures.init('minimapFlagRed'),
             minimapBase: Textures.init('minimapBaseRed')
         };
+        ctf.flagRed.minimapBase.visible = false;
     }
 
     // Check if this is a blue (1) or red (2) team flag
