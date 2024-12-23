@@ -1349,7 +1349,7 @@ var scheduleOccasionalFrameWhileBlurred = function() {
     msSinceLastFrame > 450 && !game.focus && scheduleFrame(msSinceLastFrame / 16.666, true)
 };
 
-$(function() {
+window.addEventListener('DOMContentLoaded', function(){
     game.state = Network.STATE.LOGIN,
     Tools.startupMsg(),
     Tools.loadSettings(),

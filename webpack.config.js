@@ -1,38 +1,26 @@
 const webpack = require('webpack');
 const path = require('path');
-const { CleanWebpackPlugin } = require('clean-webpack-plugin');
-const ProvidePlugin = require('webpack').ProvidePlugin;
 const CopyPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const ExtractTextPlugin = require('extract-text-webpack-plugin');
-const TerserPlugin = require('terser-webpack-plugin');
-const OptimizeCssAssetsPlugin = require('optimize-css-assets-webpack-plugin');
-
+const crypto = require('crypto');
+const fs = require('fs');
 
 module.exports = {
   entry: {
     'assets/engine.js': [
       './src/js/main.js'
     ],
-    'assets/style.css': [
-      './src/css/style.css',
-      'perfect-scrollbar/dist/css/perfect-scrollbar.css'
-    ]
   },
   output: {
     filename: '[name]',
     path: path.resolve(__dirname, 'dist'),
+    clean: true,
   },
   devtool: false,
   plugins: [
-    new CleanWebpackPlugin(),
-    new ProvidePlugin({
-      $: 'jquery',
-      jQuery: 'jquery',
-      PIXI: 'pixi.js'
-    }),
     new CopyPlugin([
       { from: './src/assets', to: 'assets' },
+      { from: './src/css', to: 'assets' },
       { from: './src/robots.txt', to: 'robots.txt' },
       { from: './src/html/privacy.html', to: 'privacy.html' },
       { from: './src/html/contact.html', to: 'contact.html' },
@@ -41,7 +29,7 @@ module.exports = {
       filename: 'index.html',
       template: './src/html/index.html',
       minify: {
-        collapseWhitespace: true,
+        collapseWhitespace: false,
         removeComments: true,
         removeRedundantAttributes: true,
         removeScriptTypeAttributes: true,
@@ -49,46 +37,20 @@ module.exports = {
         useShortDoctype: true
       },
       hash: true,
-      inject: 'head'
+      inject: 'head',
+      scriptLoading: 'blocking',
     }),
-    new ExtractTextPlugin("assets/style.css"),
-    new webpack.SourceMapDevToolPlugin({
-      filename: '[name].map'
-    })
+    
+    // add style.css tag to index.html
+    new class {
+      apply(compiler) {
+        compiler.hooks.afterEmit.tap('AfterEmitPlugin', (compilation) => {
+          const contentHash = crypto.createHash('md5').update(fs.readFileSync('dist/assets/style.css', 'utf8')).digest('hex');
+          const indexHtml = fs.readFileSync('dist/index.html', 'utf8');
+          const newHtml = indexHtml.replace('</head>', `<link rel="stylesheet" href="assets/style.css?${contentHash}"></head>`);
+          fs.writeFileSync('dist/index.html', newHtml);
+        });
+      }
+    }
   ],
-  module: {
-    rules: [
-      {
-        test: /\.css$/,
-        use: ExtractTextPlugin.extract({
-          use: {
-            loader: 'css-loader',
-            options: {
-              url: false
-            }
-          },
-          fallback: 'style-loader'
-        })
-      },
-    ],
-  },
-  optimization: {
-    minimize: process.env.DEBUG != '1',
-    minimizer: [
-      new TerserPlugin({
-        extractComments: false,
-        sourceMap: true,
-        terserOptions: {
-          output: {
-            comments: false
-          }
-        },
-      }),
-      new OptimizeCssAssetsPlugin({
-        cssProcessorOptions: {
-          zindex: false,
-        },
-      })
-    ],
-  }
 }

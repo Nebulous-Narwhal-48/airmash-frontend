@@ -26,6 +26,8 @@
         a.c2 {position: absolute; display: inline-block; width: 200px; height: 50px; bottom: 80px; left: 50px; color: white;}
         div.c1 {display: inline-block; vertical-align: middle; width: 50px; height: 30px; margin-left: 10px; background-repeat: no-repeat; background-size: 100% auto; background-image: url("data:image/svg+xml;base64,PHN2ZyBjbGFzcz0ibWNhOGFlYzA0M19sb2dvIG1jODUwMDM4MDZfbG9nbyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgNTc4Ljg4IDI3My4xNiIgZGF0YS1yZWFjdGlkPSI2Ij48cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNTQxLjEzIDg1Ljc3YzIwLjgxIDAgMzcuNzUtMTcuMzUgMzcuNzUtMzguNjcgMC0yMC40Ny0xNy4yOS0zNy43NS0zNy43NS0zNy43NXMtMzcuNzUgMTcuMjktMzcuNzUgMzcuNzVjMCAyMS4zMiAxNi45MyAzOC42NyAzNy43NSAzOC42N3oiIGRhdGEtcmVhY3RpZD0iNyI+PC9wYXRoPjxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik01MDQuMDYgOTkuMzR2MTEwLjQ1bC0zNC03My44NGMxNS4zNy0xOS4yMyAyMS42My00Ni4zNiAyMi4zMy02NS44N3YtMTZoLTYwLjIzdjE1LjRjLS44NCAxOS42NC03LjIyIDI4LjgtMjQuNzggMzQuNTF2LTEwNGwtNjEuMjcuMDZ2NDQuMzFjLTIyLjMzLTIyLjc4LTUzLjE0LTM0Ljc4LTg5LjU2LTM0Ljc4LTM5Ljg3IDAtNzIuOSAxMy44MS05NS41IDM5LjkxYTExOC4wNSAxMTguMDUgMCAwIDAtMTcuMTIgMjYuMzNjLTE0LjgxLTE1LjIxLTM1LjQyLTIxLjctNTkuODktMjEuN2gtODR2MjE5LjA0aDU2di01Mi4yOGgyOGMyNC4zOSAwIDQ1LTguMTQgNTkuODgtMjMuNTRhMTE2LjMgMTE2LjMgMCAwIDAgMTcuNzEgMjcuMWMyMi42MiAyNS42MyA1NS40NCAzOS4xNCA5NC45MiAzOS4xNCAzOC42NCAwIDcxLTEzLjUgOTMuNjEtMzkuMDYgMS41Ny0xLjc3IDMuMDYtMy42MiA0LjUxLTUuNDhoNTIuNzF2LTU0LjM1bDguMDgtMS44NiAyNiA1Ni4yNEg1NzguMlY5OS4zNGgtNzQuMTR6bS00MTggNjMuODFINTUuOTh2LTUyLjcyaDI5LjI1YzcuNTggMCAyMC4yMyA1LjExIDIwLjIzIDI1LjMyLjA1IDEzLjAxLTUuMzMgMjcuNC0xOS4zNiAyNy40em0xNjkuOTIgNjAuMTRjLTQ3LjIzIDAtODUuNjUtMzkuMzctODUuNjUtODcuNzUgMC00Ni40MiAzOS4yMS04NS42NSA4NS42NS04NS42NXM4NS42NSAzOS4yMyA4NS42NSA4NS42NWMwIDQ4LjM4LTM4LjQyIDg3Ljc1LTg1LjY1IDg3Ljc1eiIgZGF0YS1yZWFjdGlkPSI4Ij48L3BhdGg+PHBhdGggZmlsbD0iI2ZmZmZmZiIgZD0iTTI1NS45NyAxNDEuODhjLTM3Ljg4IDAtNTcgNi42NS02NC45MyA4LjY5IDYuNjIgMzAuNDkgMzMuMjEgNTMuMzYgNjQuOTMgNTMuMzZzNTguMzItMjIuODcgNjQuOTMtNTMuMzZjLTcuODktMi4wNC0yNy4wNS04LjY5LTY0LjkzLTguNjl6IiBkYXRhLXJlYWN0aWQ9IjkiPjwvcGF0aD48L3N2Zz4K");}
         </style>
+        <script src="assets/jquery.min.js"></script>
+        <script src="assets/pixi.js"></script>
     </head>
     <body>
         <noscript>
@@ -35,16 +37,13 @@
             </div>
             <div class="small">
                 This game requires a Javascript enabled browser in order to run.<br>
-                Please allow Javascript for this domain to continue <3.
+                Please allow Javascript for this domain to continue.
             </div>
         </div></noscript>
         <div id="login-ui">
             <div id="smallmenu">
-                <span class="greyedout">2017<span class="copyright">©</span></span>
                 <a href= "https://www.reddit.com/r/airmash/" target="_blank" rel="noopener">Discussion</a>
                 <a href="https://github.com/airmash-refugees/airmash-frontend/" target="_blank" rel="noopener">GitHub</a>
-                <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
-                <a href="/contact" target="_blank" rel="noopener">Contact</a>
             </div>
             <div id="logout">
                 &nbsp;
@@ -134,7 +133,7 @@
         <div id="gameinfo"></div>
         <div id="gamespecific"></div>
         <div id="gameselector"></div>
-        <div id="chatbox">
+        <div id="chatbox" style="overflow: scroll;">
             <div id="chatlines">
                 <div class="line" id="chat-0">
                     <span class="text">Press Enter to chat</span>
@@ -259,7 +258,7 @@
             </div>
             <div class="item head" id="scoretable"></div>
             <div class="spacer"></div>
-            <div id="scorecontainer"></div>
+            <div id="scorecontainer" style="overflow: scroll;"></div>
             <div id="scoremvp"></div>
         </div>
         <div id="sidebar">

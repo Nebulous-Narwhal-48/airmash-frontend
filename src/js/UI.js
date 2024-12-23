@@ -1,4 +1,4 @@
-import 'perfect-scrollbar/jquery';
+//import 'perfect-scrollbar/jquery';
 import Player from './Player';
 
 var minimapMobs = {},
@@ -710,7 +710,7 @@ UI.addChatLine = function(msg, text, msgType) {
             1 == unreadMessageCount && UI.show("#chatunreadlines", true);
         else {
             var h = $("#chatbox");
-            1 != msgType && 2 != msgType && msg.id != game.myID && h.is(":hover") || (h.perfectScrollbar("update"),
+            1 != msgType && 2 != msgType && msg.id != game.myID && h.is(":hover") || (/*h.perfectScrollbar("update"),*/
             h.scrollTop(h[0].scrollHeight))
         }
     }
@@ -724,7 +724,7 @@ UI.addChatMessage = function(text, isNotWarning) {
     $(r).length && $(r).remove(),
     $("#chatlines").append(n);
     var o = $("#chatbox");
-    o.perfectScrollbar("update"),
+    //o.perfectScrollbar("update"),
     o.scrollTop(o[0].scrollHeight)
 };
 
@@ -1966,18 +1966,19 @@ UI.setup = function() {
         e.stopPropagation()
     }),
     $("#resetbinds").on("click", Input.resetBinds),
-    config.mobile || ($("#chatbox").perfectScrollbar({
-        suppressScrollX: true,
-        handlers: ["click-rail", "drag-scrollbar", "wheel", "touch"]
-    }),
+    config.mobile || (
+    //     $("#chatbox").perfectScrollbar({
+    //     suppressScrollX: true,
+    //     handlers: ["click-rail", "drag-scrollbar", "wheel", "touch"]
+    // }),
     $("#chatinput").on("blur", function() {
         isChatBoxVisible && UI.toggleChatBox(false)
     }),
     $("#resizechat").on("mousedown", UI.startDragChat)),
-    $("#scorecontainer").perfectScrollbar({
-        suppressScrollX: true,
-        handlers: ["click-rail", "drag-scrollbar", "wheel", "touch"]
-    }),
+    // $("#scorecontainer").perfectScrollbar({
+    //     suppressScrollX: true,
+    //     handlers: ["click-rail", "drag-scrollbar", "wheel", "touch"]
+    // }),
     $("#selectupgrade-1").on("click", function() {
         UI.selectUpgrade(1)
     }),

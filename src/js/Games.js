@@ -1101,15 +1101,17 @@ Games.start = function(playerName, fromMainPage) {
     UI.gameStart(playerName, fromMainPage);
 
     // Usage telemetry
-    Tools.ajaxPost(`https://${game.backendHost}/enter`, {
-        id: config.settings.id,
-        name: playerName,
-        game: game.server.id,
-        source: document.referrer != null ? document.referrer : '',
-        mode: config.mobile ? 1 : 0,
-        version: game.version,
-        switch: !fromMainPage
-    });
+    if (false) {
+        Tools.ajaxPost(`https://${game.backendHost}/enter`, {
+            id: config.settings.id,
+            name: playerName,
+            game: game.server.id,
+            source: document.referrer != null ? document.referrer : '',
+            mode: config.mobile ? 1 : 0,
+            version: game.version,
+            switch: !fromMainPage
+        });
+    }
 };
 
 function getSelectedRoomId() {

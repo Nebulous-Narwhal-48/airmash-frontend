@@ -1,5 +1,4 @@
 import Vector from './Vector';
-import 'js-cookie'; // $.getJSON
 
 var renderer, cameraState = {
     position: Vector.zero(),
@@ -198,7 +197,7 @@ var initPolygonsScale = function() {
 };
 
 var createMapFromJson = function() {
-    $.getJSON("assets/map.json", function(mapResponse) {
+    fetch("assets/map.json").then(res=>res.json()).then(mapResponse=>{
         pixiTextureByName.polygons = new PIXI.Graphics,
         pixiTextureByName.polygons.beginFill();
         var t, r, o, points, a, l, u, c = 0, h = 0, d = 0;

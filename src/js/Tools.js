@@ -64,9 +64,6 @@ Tools.wipeReel = function() {
 
 Tools.startupMsg = function() {
     console.log("%cΛIRMΛSH Engine " + game.version + " starting up!", "font-size: 20px;"),
-    console.log(""),
-    console.log("%c*** Important message ***", "font-size: 16px; color: red;"),
-    console.log("%cDo not paste any commands given by players in this console window", "font-size: 14px; color: red;"),
     console.log("")
 };
 
