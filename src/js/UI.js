@@ -1,5 +1,5 @@
 //import 'perfect-scrollbar/jquery';
-import Player from './Player';
+import Player from './Player.js';
 
 var minimapMobs = {},
     ignoredPlayerIdSet = {},

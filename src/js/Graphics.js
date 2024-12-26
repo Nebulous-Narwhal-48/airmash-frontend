@@ -1,4 +1,4 @@
-import Vector from './Vector';
+import Vector from './Vector.js';
 
 var renderer, cameraState = {
     position: Vector.zero(),
@@ -21,7 +21,8 @@ Graphics.setup = function() {
     initMapTextures(),
     Mobs.setupDoodads(),
     UI.setupMinimap(),
-    UI.setupHUD()
+    UI.setupHUD();
+    Graphics.updateDebug();
 };
 
 var setupPixiRenderer = function() {
@@ -55,15 +56,8 @@ var setupPixiContainers = function() {
         pixiContainerByName.objects.addChild(pixiContainerByName[childContainerName]);
     for (var childContainerName of ["fields"])
         pixiContainerByName.groundobjects.addChild(pixiContainerByName[childContainerName]);
-    if (game.graphics.layers = pixiContainerByName,
-    game.graphics.gui = pixiSpriteByName,
-    config.debug.collisions) {
-        for (var gfx = new PIXI.Graphics, i = 0; i < config.walls.length; i++)
-            gfx.beginFill(16777215, .2),
-            gfx.drawCircle(config.walls[i][0], config.walls[i][1], config.walls[i][2]),
-            gfx.endFill();
-        pixiContainerByName.objects.addChild(gfx)
-    }
+    game.graphics.layers = pixiContainerByName;
+    game.graphics.gui = pixiSpriteByName;
 }
 
 var initPixiTextures = function() {
@@ -96,6 +90,58 @@ var initPixiTextures = function() {
     pixiSpriteByName.hudSpriteHealth.pivot.set(330, 174),
     pixiContainerByName.game.addChild(pixiSpriteByName.hudSpriteEnergy),
     pixiContainerByName.game.addChild(pixiSpriteByName.hudSpriteHealth)
+};
+
+Graphics.updateDebug = function() {
+    if (config.debug.collisions) {
+        if (!this.gfx) {
+            let gfx = new PIXI.Graphics;
+            for (let i = 0; i < config.walls.length; i++) {
+                gfx.beginFill(16777215, .2);
+                gfx.drawCircle(config.walls[i][0], config.walls[i][1], config.walls[i][2]);
+                gfx.endFill();
+            }
+            pixiContainerByName.objects.addChild(gfx)
+            this.gfx = gfx;
+        }
+    } else {
+        if (this.gfx) {
+            pixiContainerByName.objects.removeChild(this.gfx);
+            this.gfx.destroy();
+            this.gfx = null;
+        }
+    }
+
+    const players = Players.all();
+    for (let player_id in players) {
+        players[player_id].updateDebug();
+    }
+
+    pixiContainerByName.map.visible = !config.debug.hide_container_map;
+
+    if (config.debug.hide_container_sea) {
+        pixiTextureByName.sea.alpha = 0;
+        pixiTextureByName.sea_mask.alpha = 0;
+
+        var overdrawWidth = renderer.width + config.overdraw,
+        overdrawHeight = renderer.height + config.overdraw;
+        pixiTextureByName.sea_solid = new PIXI.Sprite(PIXI.Texture.WHITE);
+        pixiTextureByName.sea_solid.tint = 0x555555;
+        pixiTextureByName.sea_solid.width = overdrawWidth;
+        pixiTextureByName.sea_solid.height = overdrawHeight;
+        pixiContainerByName.sea.addChild(pixiTextureByName.sea_solid);
+    } else {
+        pixiTextureByName.sea.alpha = 1;
+        pixiTextureByName.sea_mask.alpha = 0.5;
+        pixiContainerByName.sea.removeChild(pixiTextureByName.sea_solid);
+        pixiTextureByName.sea_solid?.destroy();
+    }
+
+    if (config.debug.hide_container_shadows) {
+        pixiContainerByName.game.removeChild(pixiTextureByName.shadowsSprite);
+    } else {
+        pixiContainerByName.game.addChild(pixiTextureByName.shadowsSprite);
+    }
 };
 
 Graphics.resizeRenderer = function(width, height) {

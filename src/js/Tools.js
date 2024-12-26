@@ -1,4 +1,4 @@
-import Vector from './Vector';
+import Vector from './Vector.js';
 
 // if the player is logged in, all settings except for these are synchronised with the settings service (https://data.airmash.online/settings)
 const localOnlySettings = [ 'id', 'hidpi' ];
@@ -60,11 +60,6 @@ Tools.updateReel = function() {
 Tools.wipeReel = function() {
     Particles.wipe(),
     Players.wipe()
-};
-
-Tools.startupMsg = function() {
-    console.log("%cΛIRMΛSH Engine " + game.version + " starting up!", "font-size: 20px;"),
-    console.log("")
 };
 
 Tools.detectCapabilities = function() {
@@ -336,14 +331,43 @@ Tools.easing = {
     }
 };
 
+Tools.setDebugOptions = function(options) {
+    let {collisions, hide_container_map, hide_container_sea, hide_container_shadows, hide_texture_player, hide_texture_thruster, disable_region_ping, log_packets, mock_server} = options;
+    let saved = JSON.parse(localStorage.getItem("debug_options")||"{}");
+    for (let k in options) {
+        if (typeof options[k] !== 'undefined') {
+            config.debug[k] = options[k];
+            saved[k] = options[k];
+        }
+    }
+    try {
+        Graphics.updateDebug();
+    } catch {}
+    localStorage.setItem("debug_options", JSON.stringify(saved));
+};
+
 Tools.setupDebug = function() {
-    DEVELOPMENT && config.debug.show && (UI.show("#debug"),
-    game.debug = {
-        last: performance.now(),
-        ticks: 0,
-        frames: game.frames
-    },
-    setInterval(Tools.updateDebug, 2123))
+    if (DEVELOPMENT && config.debug.show) {
+        UI.show("#debug");
+        game.debug = {
+            last: performance.now(),
+            ticks: 0,
+            frames: game.frames
+        };
+        setInterval(Tools.updateDebug, 2123);
+
+        let debug_options = JSON.parse(localStorage.getItem("debug_options")||"{}");
+        Tools.setDebugOptions(debug_options);
+        document.getElementById("config_debug_collisions").checked = config.debug.collisions;
+        document.getElementById("config_debug_hide_container_map").checked = config.debug.hide_container_map;
+        document.getElementById("config_debug_hide_container_sea").checked = config.debug.hide_container_sea;
+        document.getElementById("config_debug_hide_container_shadows").checked = config.debug.hide_container_shadows;
+        document.getElementById("config_debug_hide_texture_player").checked = config.debug.hide_texture_player;
+        document.getElementById("config_debug_hide_texture_thruster").checked = config.debug.hide_texture_thruster;
+        document.getElementById("config_debug_log_packets").checked = config.debug.log_packets;
+        document.getElementById("config_debug_mock_server").checked = config.debug.mock_server;
+        UI.show("#debug_options");
+    }
 };
 
 Tools.debugLine = function(e, t) {
@@ -367,7 +391,21 @@ Tools.updateDebug = function() {
 };
 
 Tools.hideDebug = function() {
-    UI.hide("#debug")
+    UI.hide("#debug");
+};
+
+Tools.hideDebugOptions = function() {
+    UI.hide("#debug_options");
+};
+
+Tools.minimizeDebugOptions = function() {
+    UI.hide("#debug_options");
+    UI.show("#debug_options_minimized");
+};
+
+Tools.maximizeDebugOptions = function() {
+    UI.show("#debug_options");
+    UI.hide("#debug_options_minimized");
 };
 
 Tools.debugStartFrame = function() {

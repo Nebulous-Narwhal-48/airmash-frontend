@@ -1,4 +1,4 @@
-import Vector from './Vector';
+import Vector from './Vector.js';
 
 
 class Player {
@@ -194,15 +194,38 @@ class Player {
                 this.setupLevelPlate();
             }
         }
+        this.updateDebug();
+    }
+
+    updateDebug() {
         if(config.debug.collisions) {
-            this.col = new PIXI.Graphics;
-            for (var n of config.ships[this.type].collisions) {
-                this.col.beginFill(0xffffff, .2);
-                this.col.drawCircle(n[0], n[1], n[2]);
-                this.col.endFill();
+            if (!this.col) {
+                this.col = new PIXI.Graphics;
+                for (var n of config.ships[this.type].collisions) {
+                    this.col.beginFill(0xffffff, .2);
+                    this.col.drawCircle(n[0], n[1], n[2]);
+                    this.col.endFill();
+                }
+                game.graphics.layers.explosions.addChild(this.col);
             }
-            game.graphics.layers.explosions.addChild(this.col);
+        } else {
+            if (this.col) {
+                game.graphics.layers.explosions.removeChild(this.col);
+                this.col.destroy();
+                this.col = null;
+            }
         }
+        this.sprites.sprite.visible = !config.debug.hide_texture_player;
+        this.sprites.shadow.visible = !config.debug.hide_texture_player;
+        this.sprites.thruster && (this.sprites.thruster.visible = !config.debug.hide_texture_thruster);
+        this.sprites.thrusterGlow && (this.sprites.thrusterGlow.visible = !config.debug.hide_texture_thruster);
+        this.sprites.thrusterShadow && (this.sprites.thrusterShadow.visible = !config.debug.hide_texture_thruster);
+        this.sprites.thruster1 && (this.sprites.thruster1.visible = !config.debug.hide_texture_thruster);
+        this.sprites.thruster2 && (this.sprites.thruster2.visible = !config.debug.hide_texture_thruster);
+        this.sprites.thruster1Glow && (this.sprites.thruster1Glow.visible = !config.debug.hide_texture_thruster);
+        this.sprites.thruster2Glow && (this.sprites.thruster2Glow.visible = !config.debug.hide_texture_thruster);
+        this.sprites.thruster1Shadow && (this.sprites.thruster1Shadow.visible = !config.debug.hide_texture_thruster);
+        this.sprites.thruster2Shadow && (this.sprites.thruster2Shadow.visible = !config.debug.hide_texture_thruster);
     }
 
     reteam(e) {
@@ -291,8 +314,8 @@ class Player {
         var isVisible = !(this.hidden || this.culled || this.timedout);
 
         if (force || this.render != isVisible) {
-            this.sprites.sprite.visible = isVisible;
-            this.sprites.shadow.visible = isVisible;
+            this.sprites.sprite.visible = isVisible && !config.debug.hide_texture_player;
+            this.sprites.shadow.visible = isVisible && !config.debug.hide_texture_player;
             this.sprites.flag.visible = isVisible;
             this.sprites.name.visible = isVisible;
 
@@ -307,19 +330,19 @@ class Player {
 
             switch (this.type) {
             case PlaneType.Predator:
-                this.sprites.thruster.visible = isVisible;
-                this.sprites.thrusterGlow.visible = isVisible;
-                this.sprites.thrusterShadow.visible = isVisible;
+                this.sprites.thruster.visible = isVisible && !config.debug.hide_texture_thruster;
+                this.sprites.thrusterGlow.visible = isVisible && !config.debug.hide_texture_thruster;
+                this.sprites.thrusterShadow.visible = isVisible && !config.debug.hide_texture_thruster;
                 break;
             case PlaneType.Goliath:
             case PlaneType.Tornado:
             case PlaneType.Prowler:
-                this.sprites.thruster1.visible = isVisible;
-                this.sprites.thruster1Glow.visible = isVisible;
-                this.sprites.thruster1Shadow.visible = isVisible;
-                this.sprites.thruster2.visible = isVisible;
-                this.sprites.thruster2Glow.visible = isVisible;
-                this.sprites.thruster2Shadow.visible = isVisible;
+                this.sprites.thruster1.visible = isVisible && !config.debug.hide_texture_thruster;
+                this.sprites.thruster1Glow.visible = isVisible && !config.debug.hide_texture_thruster;
+                this.sprites.thruster1Shadow.visible = isVisible && !config.debug.hide_texture_thruster;
+                this.sprites.thruster2.visible = isVisible && !config.debug.hide_texture_thruster;
+                this.sprites.thruster2Glow.visible = isVisible && !config.debug.hide_texture_thruster;
+                this.sprites.thruster2Shadow.visible = isVisible && !config.debug.hide_texture_thruster;
                 break;
             case PlaneType.Mohawk:
                 this.sprites.rotor.visible = isVisible;

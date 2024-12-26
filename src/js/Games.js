@@ -1,7 +1,7 @@
-import Vector from './Vector';
+import Vector from './Vector.js';
 
 // Default games data is fetched on build from airmash-refugees/airmash-games repo
-import { defaultGamesData } from './GamesData'; 
+import { defaultGamesData } from './GamesData.js'; 
 
 // Visibility of the drop-down menus
 let playRegionMenuVisible = false;
@@ -43,6 +43,13 @@ let gameHasStarted = false;
 let inviteCopiedTimeout = null;
 
 let gamesData = defaultGamesData;
+if (window.DEVELOPMENT) {
+    gamesData.splice(0, 0, {
+        name: 'dev',
+        id: 'dev',
+        games: gameTypes.map((type, i) => ({type:i, id:`${type}1`, name:`${gameTypeNames[i]} #1`, nameShort:`${type.toUpperCase()} #1`, host:'127.0.0.1:3501', path:`?${type}`})),
+    });
+}
 let isGamesDataEmpty = false;
 
 let ctf = {};
@@ -120,7 +127,8 @@ Games.setup = function() {
     Games.updateRegion(false);
     Games.updateType(false);
     Games.updateSkin(false);
-    pingGameServersForRegions();
+    if (!config.debug.disable_region_ping)
+        pingGameServersForRegions();
 
     refreshGamesData(function() {
         updatePlayersOnline();
@@ -263,41 +271,41 @@ var refreshGamesData = function(callback, fromMainPage) {
         url += '?main=1';
     }
 
-    $.ajax({
-        url: url,
-        dataType: 'json',
-        cache: false,
-        success: function(response) {
-            // Parse games data in response
-            try {
-                gamesData = JSON.parse(response.data)
-            } catch (e) {
-                return;
-            }
+    fetch(url+'?'+new Date().getTime()).then(response => response.json()).then(response => {
+        gamesData = JSON.parse(response.data);
 
-            // Set flag from country code in response
-            if (game.myFlag == 'xx') {
-                game.myFlag = response.country;
-            }
+        // Set flag from country code in response
+        if (game.myFlag == 'xx') {
+            game.myFlag = response.country;
+        }
 
-            // On protocol mismatch, reload the page
-            if (fromMainPage && game.protocol != response.protocol) {
-                if (window.location.hash !== '#reload') {
-                    Tools.ajaxPost(`https://${game.backendHost}/clienterror`, { type: 'protocol' }, function() {
-                        UI.showMessage('alert', '<span class="mainerror">Protocol update<br>Your client is being updated to the new version</span>', 30000);
-                        setTimeout(function() { window.location = '/?' + Tools.randomID(10) + '#reload' }, 5000);
-                    });
-                }
-                else {
-                    Tools.ajaxPost(`https://${game.backendHost}/clienterror`, { type: 'protocolretry' });
-                }
+        // On protocol mismatch, reload the page
+        if (fromMainPage && game.protocol != response.protocol) {
+            if (window.location.hash !== '#reload') {
+                Tools.ajaxPost(`https://${game.backendHost}/clienterror`, { type: 'protocol' }, function() {
+                    UI.showMessage('alert', '<span class="mainerror">Protocol update<br>Your client is being updated to the new version</span>', 30000);
+                    setTimeout(function() { window.location = '/?' + Tools.randomID(10) + '#reload' }, 5000);
+                });
             }
+            else {
+                Tools.ajaxPost(`https://${game.backendHost}/clienterror`, { type: 'protocolretry' });
+            }
+        }
 
-            // Success callback
-            callback();
-        },
-        error: function() {}
-    })
+        if (window.DEVELOPMENT) {
+            gamesData.splice(0, 0, {
+                name: 'dev',
+                id: 'dev',
+                games: gameTypes.map((type, i) => ({type:i, id:`${type}1`, name:`${gameTypeNames[i]} #1`, nameShort:`${type.toUpperCase()} #1`, host:'127.0.0.1:3501', path:`?${type}`})),
+            });
+        }
+
+
+        // Success callback
+        callback();
+
+    }).catch(() => {
+    });
 };
 
 var updatePlayersOnline = function() {

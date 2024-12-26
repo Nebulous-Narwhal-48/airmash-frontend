@@ -1,5 +1,5 @@
-import Player from './Player';
-import Vector from './Vector';
+import Player from './Player.js';
+import Vector from './Vector.js';
 
 var playersById = {},
     t = [-1, -1, -1],

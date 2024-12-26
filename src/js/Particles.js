@@ -1,4 +1,4 @@
-import Vector from './Vector';
+import Vector from './Vector.js';
 
 var particleTypeIdByName = {
     MISSILE: 0,

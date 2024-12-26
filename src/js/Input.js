@@ -1,5 +1,6 @@
-import Vector from './Vector';
-import nipplejs from 'nipplejs';
+import Vector from './Vector.js';
+//import nipplejs from 'nipplejs';
+
 
 var lastTransmittedKeyState = {},
     t = {},

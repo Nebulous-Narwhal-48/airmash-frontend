@@ -5,7 +5,7 @@ window.DEVELOPMENT = (
 
 window.game = {
     protocol: 5,
-    version: `v${require('./Version')}`,
+    version: '2.0.8',
     state: 0,
     focus: true,
     screenX: 0,
@@ -29,7 +29,7 @@ window.game = {
     roomName: "",
     roomNameShort: "",
     regionName: "",
-    playRegion: "derp",
+    playRegion: "dev",
     playRoom: "ffa",
     playHost: "",
     playPath: "",
@@ -1351,7 +1351,6 @@ var scheduleOccasionalFrameWhileBlurred = function() {
 
 window.addEventListener('DOMContentLoaded', function(){
     game.state = Network.STATE.LOGIN,
-    Tools.startupMsg(),
     Tools.loadSettings(),
     Tools.detectCapabilities(),
     Tools.setupDebug(),

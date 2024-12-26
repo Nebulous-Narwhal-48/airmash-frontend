@@ -2039,7 +2039,7 @@ input:focus {
     background-image: url("data:image/png;base64,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")
 }
 
-#debug {
+.debug {
     display: none;
     position: absolute;
     right: 300px;
@@ -2050,7 +2050,7 @@ input:focus {
     padding: 12px 12px 4px 12px;
 }
 
-#debug .close {
+.debug .close {
     position: absolute;
     display: inline-block;
     top: 0;
@@ -2060,24 +2060,24 @@ input:focus {
     color: #fff
 }
 
-#debug .spacer {
+.debug .spacer {
     margin: 12px 4px 12px 4px;
     height: 1px;
     background-color: #505050
 }
 
-#debug .line {
+.debug .line {
     white-space: nowrap;
     margin-bottom: 8px;
 }
 
-#debug .line .attr {
+.debug .line .attr {
     display: inline-block;
     width: 80px;
     color: #c8c8c8
 }
 
-#debug .line .val {
+.debug .line .val {
     display: inline-block;
     color: #fff
 }

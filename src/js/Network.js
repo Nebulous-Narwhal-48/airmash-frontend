@@ -1,4 +1,4 @@
-import Vector from './Vector';
+import Vector from './Vector.js';
 
 var primarySock = null,
     backupSock = null,
@@ -449,11 +449,13 @@ Network.reconnect = function() {
 };
 
 Network.setup = function() {
-    if (DEVELOPMENT && game.customServerUrl) {
-        currentSockUrl = game.customServerUrl;
+    if (DEVELOPMENT && (game.customServerUrl||game.playHost.includes('127.0.0.1'))) {
+        currentSockUrl = game.customServerUrl || ("ws://" + game.playHost + "/" + game.playPath);
     } else {
         currentSockUrl = "wss://" + game.playHost + "/" + game.playPath;
     }
+    if (config.debug.mock_server)
+        mock_server();
     backupSock && backupSockIsConnected && backupSock.close(),
     (primarySock = new WebSocket(currentSockUrl)).binaryType = "arraybuffer",
     primarySock.onopen = function() {
@@ -497,10 +499,17 @@ Network.setup = function() {
             text: "WebSocket connection failed. Try disabling AdBlock!",
             duration: 30000
         });
-    }
-    ,
-    primarySock.onmessage = function(e) {
-        dispatchIncomingMessage(decodeMessageToDict(e.data))
+    };
+    if (config.debug.log_packets) {
+        primarySock.onmessage = function(e) {
+            let msg = decodeMessageToDict(e.data);
+            log_packet(msg);
+            dispatchIncomingMessage(msg)
+        }
+    } else {
+        primarySock.onmessage = function(e) {
+            dispatchIncomingMessage(decodeMessageToDict(e.data))
+        }
     }
 };
 
@@ -1002,3 +1011,112 @@ Network.STATE = {
     CONNECTING: 2,
     PLAYING: 3
 };
+
+
+const ServerPacketInverse = Object.keys(ServerPacket).reduce((acc, key) => {
+    acc[ServerPacket[key]] = key;
+    return acc;
+}, {});
+
+function log_packet(msg) {
+    if (msg.backup) 
+        return;
+    if (['PING', 'PING_RESULT'].includes(ServerPacketInverse[msg.c]))
+        return;
+    console.log(ServerPacketInverse[msg.c], msg);
+};
+
+function mock_server() {
+    sendMessageDict = function(msg, useBackupConn) {
+        if(useBackupConn) {
+            backupSock.send(msg);
+        } else {
+            primarySock.send(msg);
+        }
+    };
+    decodeMessageToDict = function(msg) { return msg; };
+
+    let i = 0;
+
+    window.WebSocket = class {
+        constructor(url) {
+            console.log('WebSocket', i, url)
+            if (i === 1)
+                this.backup = true;
+            else if (i > 1)
+                i = 0;
+            i++;
+
+            if (url.includes('ffa'))
+                this.type = window.GameType.FFA;
+            else if (url.includes('ctf'))
+                this.type = window.GameType.CTF;
+            else if (url.includes('btr'))
+                this.type = window.GameType.BTR;
+            else
+                throw "todo";
+        }
+    
+        set onopen(fn) {
+            setTimeout(fn, 100);
+        }
+    
+        set onclose(fn) {
+            //setTimeout(fn, 2000)
+        } 
+    
+        set onerror(fn) {
+
+        }
+    
+        set onmessage(fn) {
+            this.callback = fn;
+        }
+    
+        send(msg) {
+            if (msg.c !== 5)
+                console.log(`send${this.backup?'(backup)':''}`, msg);
+
+            if (false) {
+
+            //ACK (ignore)
+            } else if (msg.c === 5) {
+
+            //LOGIN
+            } else if (msg.c === 0) {
+                let server_msg = {
+                    c: 0,
+                    success: true,
+                    id: 1033,
+                    team: 1033,
+                    clock: performance.now()*100,//1664840,
+                    token: '49b2d1793d1d2e68',
+                    type: this.type,
+                    room: 'ab-ffa',
+                    players: [
+                      {
+                        id: 1033,
+                        status: 0,
+                        level: 0,
+                        name: 'a',
+                        type: 1,
+                        team: 1033,
+                        posX: 2193,
+                        posY: -1814,
+                        rot: 0,
+                        flag: 11,
+                        upgrades: 8 //{powerups: {shield: true, rampage: false}, speedupgrade: 0} (Tools.decodeUpgrades)
+                      }
+                    ],
+                    serverConfiguration: '{"sf":5500,"botsNamePrefix":""}',
+                    bots: [ /*{ id: 1033 }*/ ]
+                  };
+                this.callback({data:server_msg});
+            }
+        }
+
+        close() {
+
+        }
+    };
+}

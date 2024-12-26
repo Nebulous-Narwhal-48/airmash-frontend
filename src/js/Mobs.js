@@ -1,6 +1,6 @@
-import './Constants';
-import Vector from './Vector';
-import Mob from './Mob';
+import './Constants.js';
+import Vector from './Vector.js';
+import Mob from './Mob.js';
 
 var mobs = {};
 var doodads = [];
