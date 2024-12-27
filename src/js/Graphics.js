@@ -93,6 +93,7 @@ var initPixiTextures = function() {
 };
 
 Graphics.updateDebug = function() {
+    if (!window.DEVELOPMENT) return;
     if (config.debug.collisions) {
         if (!this.gfx) {
             let gfx = new PIXI.Graphics;
@@ -138,9 +139,11 @@ Graphics.updateDebug = function() {
     }
 
     if (config.debug.hide_container_shadows) {
+        this.removed_shadows = true;
         pixiContainerByName.game.removeChild(pixiTextureByName.shadowsSprite);
     } else {
-        pixiContainerByName.game.addChild(pixiTextureByName.shadowsSprite);
+        if (this.removed_shadows)
+            pixiContainerByName.game.addChild(pixiTextureByName.shadowsSprite);
     }
 };
 

@@ -198,6 +198,7 @@ class Player {
     }
 
     updateDebug() {
+        if (!window.DEVELOPMENT) return;
         if(config.debug.collisions) {
             if (!this.col) {
                 this.col = new PIXI.Graphics;
@@ -458,6 +459,12 @@ class Player {
         }
         
         var layer = this.me() ? game.graphics.layers.aircraftme : game.graphics.layers.aircraft;
+
+        if (window.DEVELOPMENT && this.col) {
+            game.graphics.layers.explosions.removeChild(this.col);
+            this.col.destroy();
+            this.col = null;
+        }
 
         layer.removeChild(this.sprites.sprite);
         game.graphics.layers.shadows.removeChild(this.sprites.shadow);
