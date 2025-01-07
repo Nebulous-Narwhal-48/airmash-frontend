@@ -259,8 +259,7 @@ var dispatchIncomingMessage = function(msg) {
             Players.updateLevel(msg);
             break;
         case ServerPacket.PLAYER_RETEAM:
-            for (let player of msg.players)
-                Players.reteam(player);
+            Players.reteam(msg);
             break;
         case ServerPacket.EVENT_REPEL:
             Network.force(msg);
@@ -390,6 +389,12 @@ var handleCustomMessage = function(msg) {
                 localStorage.setItem("my_skins", JSON.stringify(skins));
             }
             break;
+        case 202:
+            // change game mode
+            game.myTeam = parsedData.team;
+            game.gameType = parsedData.type;
+            game.force_update_teams = true;
+            Games.prep();
     }
 };
 

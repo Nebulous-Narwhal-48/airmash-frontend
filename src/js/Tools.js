@@ -332,7 +332,7 @@ Tools.easing = {
 };
 
 Tools.setDebugOptions = function(options) {
-    let {collisions, hide_container_map, hide_container_sea, hide_container_shadows, hide_texture_player, hide_texture_thruster, disable_region_ping, log_packets, mock_server} = options;
+    let {collisions, hide_container_map, hide_container_sea, hide_container_shadows, hide_texture_player, hide_texture_thruster, hide_texture_mountains, disable_region_ping, log_packets, mock_server, remove_mountains, teleport} = options;
     let saved = JSON.parse(localStorage.getItem("debug_options")||"{}");
     for (let k in options) {
         if (typeof options[k] !== 'undefined') {
@@ -343,6 +343,31 @@ Tools.setDebugOptions = function(options) {
     try {
         Graphics.updateDebug();
     } catch {}
+    if ('remove_mountains' in options) {
+        if (remove_mountains) {
+            Network.sendCommand("server", "test mountains_off");
+        } else {
+            Network.sendCommand("server", "test mountains_on");
+        }
+    }
+    if ('hide_texture_mountains' in options) {
+        if (hide_texture_mountains) {
+            Mobs.removeDoodads(true);
+        } else {
+            if (game.graphics.layers)
+                Mobs.setupDoodads();
+        }
+    }
+    if (teleport) {
+        const poi = {
+            '0,0': [0, 0],
+            'red_base': [8602-100, -944],
+            'blue_base': [-9669+100, -1471],
+        };
+        const [x, y] = poi[teleport];
+        Network.sendCommand("server", `test teleport ${x} ${y}`);
+        document.getElementById("config_debug_teleport").value = '';
+    } 
     localStorage.setItem("debug_options", JSON.stringify(saved));
 };
 
@@ -485,7 +510,8 @@ var yCoordToBucket = function(y) {
     return Tools.clamp(Math.floor(y / bucketState.size) + bucketState.bucketsHalfY, 0, bucketState.bucketsMaxY)
 };
 
-Tools.initBuckets = function() {
+Tools.initBuckets = function(doodads) {
+    game.buckets = [];
     bucketState = {
         size: config.bucketSize,
         halfSize: parseInt(config.bucketSize / 2),
@@ -499,10 +525,12 @@ Tools.initBuckets = function() {
         for (var yBucket = 0; yBucket <= bucketState.bucketsMaxY; yBucket++)
             game.buckets[xBucket].push([[]])
     }
-    for (var doodadId = 0; doodadId < config.doodads.length; doodadId++)
-        xBucket = xCoordToBucket(config.doodads[doodadId][0]),
-        yBucket = yCoordToBucket(config.doodads[doodadId][1]),
-        game.buckets[xBucket][yBucket][0].push(doodadId)
+    for (var doodadId = 0; doodadId < doodads.length; doodadId++) {
+        if (!doodads[doodadId]) continue;
+        xBucket = xCoordToBucket(doodads[doodadId][0]);
+        yBucket = yCoordToBucket(doodads[doodadId][1]);
+        game.buckets[xBucket][yBucket][0].push(doodadId);
+    }
 };
 
 Tools.getBucketBounds = function(centre, width, height) {

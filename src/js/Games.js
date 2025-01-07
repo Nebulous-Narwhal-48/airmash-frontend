@@ -1213,6 +1213,7 @@ Games.prep = function() {
             break;
 
         case GameType.FFA:
+            $('#gamespecific').html('');
             if (game.server.config.tdmMode) {
                 $('#gamespecific').html(
                     '<div id="blueflag-name" class="blueflag-player" style="color: #4076E2">0</div>' + 
@@ -1229,23 +1230,27 @@ Games.wipe = function() {
     removeFirewall();
 
     // If exists, clear all CTF graphics
-    if (ctf.flagBlue && ctf.flagRed) {
-        game.graphics.layers.flags.removeChild(ctf.flagBlue.sprite);
+    if (ctf.flagRed) {
         game.graphics.layers.flags.removeChild(ctf.flagRed.sprite);
-        game.graphics.layers.shadows.removeChild(ctf.flagBlue.spriteShadow);
         game.graphics.layers.shadows.removeChild(ctf.flagRed.spriteShadow);
-        game.graphics.layers.ui3.removeChild(ctf.flagBlue.minimapSprite);
         game.graphics.layers.ui3.removeChild(ctf.flagRed.minimapSprite);
-        game.graphics.layers.ui2.removeChild(ctf.flagBlue.minimapBase);
         game.graphics.layers.ui2.removeChild(ctf.flagRed.minimapBase);
-        ctf.flagBlue.sprite.destroy();
         ctf.flagRed.sprite.destroy();
-        ctf.flagBlue.spriteShadow.destroy();
         ctf.flagRed.spriteShadow.destroy();
-        ctf.flagBlue.minimapSprite.destroy();
         ctf.flagRed.minimapSprite.destroy();
-        ctf.flagBlue.minimapBase.destroy();
         ctf.flagRed.minimapBase.destroy();
+        ctf.flagRed = null;
+    }
+    if (ctf.flagBlue) {
+        game.graphics.layers.flags.removeChild(ctf.flagBlue.sprite);
+        game.graphics.layers.shadows.removeChild(ctf.flagBlue.spriteShadow);
+        game.graphics.layers.ui3.removeChild(ctf.flagBlue.minimapSprite);
+        game.graphics.layers.ui2.removeChild(ctf.flagBlue.minimapBase);
+        ctf.flagBlue.sprite.destroy();
+        ctf.flagBlue.spriteShadow.destroy();
+        ctf.flagBlue.minimapSprite.destroy();
+        ctf.flagBlue.minimapBase.destroy();
+        ctf.flagBlue = null;
     }
 };
 

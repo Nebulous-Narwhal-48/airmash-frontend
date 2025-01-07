@@ -3,8 +3,9 @@ import Vector from './Vector.js';
 import Mob from './Mob.js';
 
 var mobs = {};
-var doodads = [];
+var doodads = [];//visible doodads
 var someFlag = {};
+let loadedDoodads = [];
 
 Mobs.add = function (netmob, network, ownerId) {
     mobs[netmob.id] = new Mob(netmob, ownerId);
@@ -82,13 +83,15 @@ Mobs.wipe = function () {
 };
 
 Mobs.countDoodads = function () {
-    return [doodads.length, config.doodads.length]
+    return [doodads.length, loadedDoodads.length]
 };
 
 Mobs.setupDoodads = function () {
-    config.doodads = config.doodads.concat(config.groundDoodads);
-    for (var id = 0; id < config.doodads.length; id++)
-        Mobs.addDoodad(config.doodads[id])
+    Mobs.removeDoodads();
+    loadedDoodads = JSON.parse(JSON.stringify(config.doodads.concat(config.groundDoodads)));
+    for (var id = 0; id < loadedDoodads.length; id++)
+        Mobs.addDoodad(loadedDoodads[id]);
+    Tools.initBuckets(loadedDoodads);
 };
 
 Mobs.addDoodad = function (doodad) {
@@ -118,20 +121,57 @@ Mobs.getClosestDoodad = function (e) {
 };
 
 Mobs.updateDoodads = function () {
-    for (var e, r = Tools.getBucketBounds(Graphics.getCamera(), 512 + game.halfScreenX / game.scale, 512 + game.halfScreenY / game.scale), i = r[0]; i <= r[1]; i++)
-        for (var o = r[2]; o <= r[3]; o++)
-            for (var s = 0; s < game.buckets[i][o][0].length; s++)
-                a = game.buckets[i][o][0][s],
-                    e = config.doodads[a],
-                    game.state == Network.STATE.LOGIN && 0 != e[9] || Graphics.inScreen(new Vector(e[0], e[1]), 256 * e[3] + config.overdraw) && (e[7] || (e[8].visible = true,
-                        e[7] = true,
-                        someFlag[a] || (someFlag[a] = true,
-                            doodads.push([e[0], e[1], e[2], e[3], a, e[9]]))));
-    for (var a, l = doodads.length - 1; l >= 0; l--)
-        a = doodads[l][4],
-            e = config.doodads[a],
-            Graphics.inScreen(new Vector(e[0], e[1]), 256 * e[3] + config.overdraw) || e[7] && (e[8].visible = false,
-                e[7] = false,
-                doodads.splice(l, 1),
-                delete someFlag[a])
+    for (var e, r = Tools.getBucketBounds(Graphics.getCamera(), 512 + game.halfScreenX / game.scale, 512 + game.halfScreenY / game.scale), i = r[0]; i <= r[1]; i++) {
+        for (var o = r[2]; o <= r[3]; o++) {
+            for (var s = 0; s < game.buckets[i][o][0].length; s++) {
+                const doodadId = game.buckets[i][o][0][s];
+                e = loadedDoodads[doodadId];
+                const [x, y, textureNameOrId, scale,,,,,sprite, is_not_mountain] = e;
+                if (game.state == Network.STATE.LOGIN && !is_not_mountain || Graphics.inScreen(new Vector(x, y), 256 * scale + config.overdraw)) {
+                    if (!e[7]) {
+                        sprite.visible = true;
+                        e[7] = true;
+
+                        if (!someFlag[doodadId]) {
+                            someFlag[doodadId] = true;
+                            doodads.push([x, y, textureNameOrId, scale, doodadId, is_not_mountain]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (let l = doodads.length - 1; l >= 0; l--) {
+        const doodadId = doodads[l][4];
+        const e = loadedDoodads[doodadId];
+        if (!Graphics.inScreen(new Vector(e[0], e[1]), 256 * e[3] + config.overdraw)) {
+            if (e[7]) {
+                e[8].visible = false;
+                e[7] = false;
+                doodads.splice(l, 1);
+                delete someFlag[doodadId];
+            }
+        }
+    }
+};
+
+Mobs.removeDoodads = function(remove_only_mountains) {
+    for (let id = 0; id < loadedDoodads.length; id++) {
+        if (!loadedDoodads[id]) continue;
+        let [,,textureNameOrId,,,,,,sprite, is_not_mountain] = loadedDoodads[id];
+        if (remove_only_mountains && is_not_mountain) continue;
+        game.graphics.layers.doodads.removeChild(sprite);
+        sprite.destroy();
+        loadedDoodads[id] = null;
+    }
+
+    for (let l = doodads.length - 1; l >= 0; l--) {
+        const doodadId = doodads[l][4];
+        if (!loadedDoodads[doodadId]) {
+            doodads.splice(l, 1);
+            delete someFlag[doodadId];
+        }
+    }
+
+    Tools.initBuckets(loadedDoodads);
 };

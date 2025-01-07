@@ -606,14 +606,19 @@
         </div>
         <div id="debug" class="debug"></div>
         <div id="debug_options" class="debug" style="right: 50px; width:200px">
+            <div class="line">Client</div>
             <div class="line"><div class="attr" style="width:150px">Collisions</div><div class="val"><input id="config_debug_collisions" type="checkbox" onchange="Tools.setDebugOptions({collisions:this.checked})"></div></div>
             <div class="line"><div class="attr" style="width:150px">Hide container: map</div><div class="val"><input id="config_debug_hide_container_map" type="checkbox" onchange="Tools.setDebugOptions({hide_container_map:this.checked})"></div></div>
             <div class="line"><div class="attr" style="width:150px">Hide container: sea</div><div class="val"><input id="config_debug_hide_container_sea" type="checkbox" onchange="Tools.setDebugOptions({hide_container_sea:this.checked})"></div></div>
             <div class="line"><div class="attr" style="width:150px">Hide container: shadows</div><div class="val"><input id="config_debug_hide_container_shadows" type="checkbox" onchange="Tools.setDebugOptions({hide_container_shadows:this.checked})"></div></div>
             <div class="line"><div class="attr" style="width:150px">Hide texture: player</div><div class="val"><input id="config_debug_hide_texture_player" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_player:this.checked})"></div></div>
             <div class="line"><div class="attr" style="width:150px">Hide texture: thruster</div><div class="val"><input id="config_debug_hide_texture_thruster" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_thruster:this.checked})"></div></div>
+            <div class="line"><div class="attr" style="width:150px">Hide texture: mountains</div><div class="val"><input id="config_debug_hide_texture_mountains" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_mountains:this.checked})"></div></div>
             <div class="line"><div class="attr" style="width:150px">Log packets</div><div class="val"><input id="config_debug_log_packets" type="checkbox" onchange="Tools.setDebugOptions({log_packets:this.checked})"></div></div>
             <div class="line"><div class="attr" style="width:150px">Mock server</div><div class="val"><input id="config_debug_mock_server" type="checkbox" onchange="Tools.setDebugOptions({mock_server:this.checked})"></div></div>
+            <div class="line">Server</div>
+            <div class="line"><div class="attr" style="width:150px">Remove mountains</div><div class="val"><input id="config_debug_remove_mountains" type="checkbox" onchange="Tools.setDebugOptions({remove_mountains:this.checked})"></div></div>
+            <div class="line"><div class="attr" style="width:150px">Teleport</div><div class="val"><select id="config_debug_teleport" style="max-width: 50px;" onchange="Tools.setDebugOptions({teleport:this.value})"><option></option><option>0,0</option><option>red_base</option><option>blue_base</option></select></div></div>
             <div class="close" style="right:14px" onclick="Tools.minimizeDebugOptions()">_</div>
             <div class="close" style="right:0px;" onclick="Tools.hideDebugOptions()">x</div>
         </div>

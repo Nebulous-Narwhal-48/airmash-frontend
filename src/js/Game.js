@@ -1355,7 +1355,6 @@ window.addEventListener('DOMContentLoaded', function(){
     Tools.detectCapabilities(),
     Tools.setupDebug(),
     Graphics.setup(),
-    Tools.initBuckets(),
     Particles.setup(),
     UI.setup(),
     Input.setup(),

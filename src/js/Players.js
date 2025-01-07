@@ -165,10 +165,13 @@ Players.updateLevel = function(packet) {
 };
 
 Players.reteam = function(msg) {
-    let player = playersById[msg.id];
-    if (player != null) {
-        player.reteam(msg.team);
+    for (let {id, team} of msg.players) {
+        let player = playersById[id];
+        if (player != null) {
+            player.reteam(team);
+        }
     }
+    Players.updateFFATeams();
 
     UI.updateGameInfo();
 };
@@ -296,7 +299,7 @@ Players.playersByTeam = function() {
 };
 
 Players.updateFFATeams = function() {
-    if (GameType.FFA != game.gameType) 
+    if (GameType.CTF == game.gameType || game.server.config?.tdmMode)
         return;
     let teams = Players.playersByTeam();
     for (let team in teams) {
@@ -304,12 +307,13 @@ Players.updateFFATeams = function() {
         for (let player of players) {
             let {in_team:prev_in_team, in_my_team:prev_in_my_team} = player;
             player.in_team = players.length > 1 && Games.assign_team_color(player.team) || Games.unassign_team_color(player.team);
-            player.in_my_team =  player.in_team && player.team == game.myTeam;
+            player.in_my_team = player.in_team && player.team == game.myTeam;
 
-            if (player.in_team != prev_in_team || player.in_my_team != prev_in_my_team) {
+            if (game.force_update_teams || (player.in_team != prev_in_team || player.in_my_team != prev_in_my_team)) {
                 player.sprites.name.style = new PIXI.TextStyle(player.nameplateTextStyle());
                 UI.changeMinimapTeam(player.id, player.in_my_team ? 1 : player.team);
             }
         }                
     }
+    game.force_update_teams = false;
 };

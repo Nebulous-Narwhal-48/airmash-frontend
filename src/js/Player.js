@@ -238,12 +238,11 @@ class Player {
             if (this.me()) {
                 game.myTeam = this.team;
             }
-            Players.updateFFATeams();
         }
     }
 
     nameplateTextStyle() {
-        if (2 == game.gameType || game.server.config.tdmMode)
+        if (GameType.CTF == game.gameType || game.server.config.tdmMode)
             var e = 1 == this.team ? "#4076E2" : "#EA4242";
         else {
             if (this.in_my_team) {
