@@ -4,6 +4,7 @@ import './Constants.js';
 import './Game.js';
 import './Games.js';
 import './Graphics.js';
+import './editor.js';
 import './Input.js';
 import './Mobs.js';
 import './Network.js';

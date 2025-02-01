@@ -6,8 +6,9 @@ import { defaultGamesData } from './GamesData.js';
 // Visibility of the drop-down menus
 let playRegionMenuVisible = false;
 let playTypeMenuVisible = false;
-let skinMenuVisible = false;
 let gamesSelectorVisible = false;
+
+const BLUE = 1, RED = 2;
 
 const gameTypes = [
     '',
@@ -77,15 +78,16 @@ Games.setup = function() {
     $('#playtype').on('click', function(event) {
         Games.updateType(true, event)
     });
-    $('#skin').on('click', function(event) {
-        Games.updateSkin(true, event)
-    });
     $('#open-menu').on('click', function(event) {
         Games.popGames(),
         event.stopPropagation()
     });
     $('#gameselector').on('click', function(event) {
         event.stopPropagation()
+    });
+    $('#skinbutton').on('click', function(event) {
+        UI.openSkinMenu();
+        event.stopPropagation();
     });
     $('#invite-copy').on('click', Games.copyInviteLink);
     $('#loginbutton').on('click', function(event) {
@@ -126,7 +128,6 @@ Games.setup = function() {
 
     Games.updateRegion(false);
     Games.updateType(false);
-    Games.updateSkin(false);
     if (!config.debug.disable_region_ping)
         pingGameServersForRegions();
 
@@ -307,6 +308,7 @@ var refreshGamesData = function(callback, fromMainPage) {
     }).catch(() => {
     });
 };
+Games.refreshGamesData = refreshGamesData;
 
 var updatePlayersOnline = function() {
     let playerCount = 0;
@@ -412,22 +414,12 @@ Games.selectGame = function(clickEvent, room) {
     Games.updateType(false);
 };
 
-Games.selectSkin = function(clickEvent, skin) {
-    clickEvent.stopPropagation();
-    Sound.UIClick();
-    game.skin = skin;
-    Games.updateSkin(false);
-};
-
 Games.closeDropdowns = function() {
     if (playTypeMenuVisible) {
         Games.updateType(false);
     }
     if (playRegionMenuVisible) {
         Games.updateRegion(false);
-    }
-    if (skinMenuVisible) {
-        Games.updateSkin(false);
     }
 };
 
@@ -454,9 +446,6 @@ Games.updateRegion = function(menuVisible, clickEvent) {
         if (menuVisible) {
             if (playTypeMenuVisible) {
                 Games.updateType(false);
-            }
-            if (skinMenuVisible) {
-                Games.updateSkin(false);
             }
 
             // Header row
@@ -582,9 +571,6 @@ Games.updateType = function(menuVisible, clickEvent) {
             if (playRegionMenuVisible) { 
                 Games.updateRegion(false);
             }
-            if (skinMenuVisible) {
-                Games.updateSkin(false);
-            }
 
             // Header row
             html += '<div class="item">';
@@ -676,81 +662,6 @@ Games.updateType = function(menuVisible, clickEvent) {
 
         playTypeMenuVisible = menuVisible;
     }
-};
-
-Games.updateSkin = function(menuVisible, clickEvent) {
-    let html = '';
-    let css = null;
-
-    if (clickEvent) {
-        clickEvent.stopPropagation();
-        if (!skinMenuVisible) {
-            Sound.UIClick();
-        }
-    }
-
-    if (menuVisible) {
-        UI.closeLogin();
-    }
-
-    if (menuVisible == null) {
-        menuVisible = skinMenuVisible;
-    }
-    
-    if (menuVisible) {
-        if (playRegionMenuVisible) { 
-            Games.updateRegion(false);
-        }
-        if (playTypeMenuVisible) {
-            Games.updateType(false);
-        }
-
-        const my_skins = JSON.parse(localStorage.getItem("my_skins")||'[]');
-
-        html += '<div class="item"></div>';
-
-        html += `<div class="item selectable" 
-                onclick="Games.selectSkin(event, '')">
-                <div class="gametype chooser">Default</div>
-                <div class="clear"></div>
-        </div>`;
-        for (let url of my_skins) {
-            html += `<div class="item selectable" 
-                onclick="Games.selectSkin(event, '${url}')">
-                <div class="gametype chooser"><img style="max-width:50px;max-height:50px" src="${url}"></div>
-                <div class="clear"></div>
-            </div>`;
-        }
-
-        html += '<div class="item"></div>';
-
-        css = {
-            width: '280px',
-            height: 'auto',
-            'z-index': '2'
-        };
-
-        $('#playtype').removeClass('hoverable');
-    } else {
-        html += '<div class="arrowdown"></div>',
-        html += '<div class="playtop">SKIN</div>';
-
-        html += '<div class="playbottom">' + (!game.skin ? 'Default' : `<img style="max-width:20px;max-height:20px" src="${game.skin}">`) + '</div>';
-
-        css = {
-            width: '190px',
-            height: '40px',
-            'z-index': 'auto'
-        };
-
-        $('#skin').addClass('hoverable');
-    }
-
-    $('#skin').html(html);
-    $('#skin').css(css);
-
-    skinMenuVisible = menuVisible;
-    
 };
 
 Games.popGames = function() {
@@ -1158,52 +1069,6 @@ Games.prep = function() {
                 '<div id="redflag-name" class="redflag-player">&nbsp;</div>'
                 );
             UI.show('#gamespecific');
-
-            // Set up game state for CTF, including sprites
-            ctf = {
-                flagBlue: {
-                    visible: false,
-                    playerId: null,
-                    direction: 1,
-                    diffX: 0,
-                    momentum: 0,
-                    position: Vector.zero(),
-                    basePos: new Vector(-9669,-1471),
-                    sprite: Textures.init('ctfFlagBlue', {
-                        scale: 0.4,
-                        visible: false
-                    }),
-                    spriteShadow: Textures.init('ctfFlagShadow', {
-                        scale: 0.4 * 1.1,
-                        visible: false
-                    }),
-                    minimapSprite: Textures.init('minimapFlagBlue'),
-                    minimapBase: Textures.init('minimapBaseBlue')
-                },
-                flagRed: {
-                    visible: false,
-                    playerId: null,
-                    direction: 1,
-                    diffX: 0,
-                    momentum: 0,
-                    position: Vector.zero(),
-                    basePos: new Vector(8602,-944),
-                    sprite: Textures.init('ctfFlagRed', {
-                        scale: 0.4,
-                        visible: false
-                    }),
-                    spriteShadow: Textures.init('ctfFlagShadow', {
-                        scale: 0.4 * 1.1,
-                        visible: false
-                    }),
-                    minimapSprite: Textures.init('minimapFlagRed'),
-                    minimapBase: Textures.init('minimapBaseRed')
-                }
-            };
-
-            // Display team bases on minimap
-            Graphics.minimapMob(ctf.flagBlue.minimapBase, ctf.flagBlue.basePos.x, ctf.flagBlue.basePos.y);
-            Graphics.minimapMob(ctf.flagRed.minimapBase, ctf.flagRed.basePos.x, ctf.flagRed.basePos.y);
             break;
         
         case GameType.BTR:
@@ -1230,6 +1095,10 @@ Games.wipe = function() {
     removeFirewall();
 
     // If exists, clear all CTF graphics
+    removeCtfObjects();
+};
+
+function removeCtfObjects() {
     if (ctf.flagRed) {
         game.graphics.layers.flags.removeChild(ctf.flagRed.sprite);
         game.graphics.layers.shadows.removeChild(ctf.flagRed.spriteShadow);
@@ -1252,22 +1121,28 @@ Games.wipe = function() {
         ctf.flagBlue.minimapBase.destroy();
         ctf.flagBlue = null;
     }
-};
+}
 
 /**
  * GAME_FLAG message handler
  */
 Games.networkFlag = function(msg) {
 
-    if (game.gameType == GameType.FFA && !ctf.flagRed) {
+    // reset ctf bases if map has changed
+    if (ctf.flagRed && ctf.flagRed.mapId != game.server.config.mapId) {
+        removeCtfObjects();
+    }
+
+    if (msg.flag == RED && !ctf.flagRed) {
         ctf.flagRed = {
+            mapId: game.server.config.mapId,
             visible: false,
             playerId: null,
             direction: 1,
             diffX: 0,
             momentum: 0,
             position: Vector.zero(),
-            basePos: new Vector(8602,-944),
+            basePos: new Vector(msg.posX+2, msg.posY-4), //exploit the fact that (at start and when map changed) base pos = flag pos (config.objects.bases is not yet loaded)
             sprite: Textures.init('ctfFlagRed', {
                 scale: 0.4,
                 visible: false
@@ -1279,12 +1154,41 @@ Games.networkFlag = function(msg) {
             minimapSprite: Textures.init('minimapFlagRed'),
             minimapBase: Textures.init('minimapBaseRed')
         };
-        ctf.flagRed.minimapBase.visible = false;
+        if (game.gameType == GameType.FFA)
+            ctf.flagRed.minimapBase.visible = false;
+        if (game.gameType == GameType.CTF)
+            Graphics.minimapMob(ctf.flagRed.minimapBase, ctf.flagRed.basePos.x, ctf.flagRed.basePos.y);
+    }
+    if (msg.flag == BLUE && !ctf.flagBlue) {
+        ctf.flagBlue = {
+            mapId: game.server.config.mapId,
+            visible: false,
+            playerId: null,
+            direction: 1,
+            diffX: 0,
+            momentum: 0,
+            position: Vector.zero(),
+            basePos: new Vector(msg.posX+1, msg.posY-1),
+            sprite: Textures.init('ctfFlagBlue', {
+                scale: 0.4,
+                visible: false
+            }),
+            spriteShadow: Textures.init('ctfFlagShadow', {
+                scale: 0.4 * 1.1,
+                visible: false
+            }),
+            minimapSprite: Textures.init('minimapFlagBlue'),
+            minimapBase: Textures.init('minimapBaseBlue')
+        };
+        if (game.gameType == GameType.FFA)
+            ctf.flagBlue.minimapBase.visible = false;
+        if (game.gameType == GameType.CTF)
+            Graphics.minimapMob(ctf.flagBlue.minimapBase, ctf.flagBlue.basePos.x, ctf.flagBlue.basePos.y);
     }
 
     // Check if this is a blue (1) or red (2) team flag
     let flag, selector, flagCaptures;
-    if (msg.flag == 1) {
+    if (msg.flag == BLUE) {
         flag = ctf.flagBlue;
         selector = '#blueflag-name';
         flagCaptures = msg.blueteam;

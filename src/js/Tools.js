@@ -332,7 +332,7 @@ Tools.easing = {
 };
 
 Tools.setDebugOptions = function(options) {
-    let {collisions, hide_container_map, hide_container_sea, hide_container_shadows, hide_texture_player, hide_texture_thruster, hide_texture_mountains, disable_region_ping, log_packets, mock_server, remove_mountains, teleport} = options;
+    let {collisions, hide_container_map, hide_container_sea, hide_container_shadows, hide_texture_player, hide_texture_thruster, hide_texture_mountains, hide_texture_sea_mask, disable_region_ping, log_packets, mock_server, remove_mountains, teleport, editor_mode} = options;
     let saved = JSON.parse(localStorage.getItem("debug_options")||"{}");
     for (let k in options) {
         if (typeof options[k] !== 'undefined') {
@@ -367,7 +367,35 @@ Tools.setDebugOptions = function(options) {
         const [x, y] = poi[teleport];
         Network.sendCommand("server", `test teleport ${x} ${y}`);
         document.getElementById("config_debug_teleport").value = '';
-    } 
+    }
+    if (editor_mode) {
+        if (game.state !== Network.STATE.LOGIN) {
+            console.error('Logout to enter editor mode');
+            return;
+        }
+
+        function startEditor() {
+            config.debug.mock_server = true;
+            game.editorMode = true;
+            game.freeCamera = true;
+            Input.setupEditorMode();
+            Games.start('playerName', true);
+            document.getElementById("config_debug_editor_mode").checked = false;
+            document.querySelector('.debug_editor').style.display = 'block';
+            document.querySelector('.debug_client').style.display = 'none';
+            document.querySelector('.debug_server').style.display = 'none';
+            UI.show("#debug_options");
+        }
+
+        game.playRegion = 'dev';
+        if (!window.DEVELOPMENT) {
+            window.DEVELOPMENT = true;
+            Games.refreshGamesData(startEditor);
+        } else {
+            startEditor();
+        }
+
+    }
     localStorage.setItem("debug_options", JSON.stringify(saved));
 };
 
@@ -382,13 +410,23 @@ Tools.setupDebug = function() {
         setInterval(Tools.updateDebug, 2123);
 
         let debug_options = JSON.parse(localStorage.getItem("debug_options")||"{}");
+        debug_options.remove_mountains = false;
+        debug_options.editor_mode = false;
+        debug_options.teleport = '';
         Tools.setDebugOptions(debug_options);
         document.getElementById("config_debug_collisions").checked = config.debug.collisions;
         document.getElementById("config_debug_hide_container_map").checked = config.debug.hide_container_map;
         document.getElementById("config_debug_hide_container_sea").checked = config.debug.hide_container_sea;
         document.getElementById("config_debug_hide_container_shadows").checked = config.debug.hide_container_shadows;
+        document.getElementById("config_debug_hide_texture_sea_mask").checked = config.debug.hide_texture_sea_mask;
         document.getElementById("config_debug_hide_texture_player").checked = config.debug.hide_texture_player;
         document.getElementById("config_debug_hide_texture_thruster").checked = config.debug.hide_texture_thruster;
+        document.getElementById("config_debug_hide_texture_rock").checked = config.debug.hide_texture_rock;
+        document.getElementById("config_debug_hide_mask_rock").checked = config.debug.hide_mask_rock;
+        document.getElementById("config_debug_hide_texture_sand").checked = config.debug.hide_texture_sand;
+        document.getElementById("config_debug_hide_mask_sand").checked = config.debug.hide_mask_sand;
+        document.getElementById("config_debug_hide_texture_forest").checked = config.debug.hide_texture_forest;
+        document.getElementById("config_debug_hide_mask_map").checked = config.debug.hide_mask_map;
         document.getElementById("config_debug_log_packets").checked = config.debug.log_packets;
         document.getElementById("config_debug_mock_server").checked = config.debug.mock_server;
         UI.show("#debug_options");
@@ -396,7 +434,7 @@ Tools.setupDebug = function() {
 };
 
 Tools.debugLine = function(e, t) {
-    return '<div class="line"><span class="attr">' + UI.escapeHTML(e) + '</span><span class="val">' + UI.escapeHTML(t) + "</span></div>"
+    return '<div class="line"><span class="attr">' + UI.escapeHTML(e) + '</span><span class="val">' + UI.escapeHTML(t).replaceAll('\n','<br>') + "</span></div>"
 };
 
 Tools.updateDebug = function() {
@@ -407,8 +445,9 @@ Tools.updateDebug = function() {
         i = Mobs.countDoodads(),
         o = "",
         s = Players.getMe();
+    let {position:{x, y}} = Graphics.getCameraState();
     null != s && (o = Tools.debugLine("Coords", Math.round(s.pos.x) + ", " + Math.round(s.pos.y)));
-    var a = Tools.debugLine("FPS", Math.round(t)) + Tools.debugLine("Ticks", (game.debug.ticks / (e - game.debug.last) * 100).toFixed(2) + "%") + Tools.debugLine("Ping", game.ping.toFixed(2) + " ms") + Tools.debugLine("Res", game.screenX + " x " + game.screenY) + '<div class="spacer"></div>' + Tools.debugLine("Players", n[0] + " / " + n[1]) + Tools.debugLine("Mobs", r[0] + " / " + r[1]) + Tools.debugLine("Particles", Particles.count()) + Tools.debugLine("Doodads", i[0] + " / " + i[1]) + '<div class="spacer"></div>' + o + Tools.debugLine("Scale", game.scale.toFixed(2)) + Tools.debugLine("Jitter", game.jitter.toFixed(3)) + '<div class="close" onclick="Tools.hideDebug()">x</div>';
+    var a = Tools.debugLine("FPS", Math.round(t)) + Tools.debugLine("Ticks", (game.debug.ticks / (e - game.debug.last) * 100).toFixed(2) + "%") + Tools.debugLine("Ping", game.ping.toFixed(2) + " ms") + Tools.debugLine("Res", game.screenX + " x " + game.screenY) + '<div class="spacer"></div>' + Tools.debugLine("Players", n[0] + " / " + n[1]) + Tools.debugLine("Mobs", r[0] + " / " + r[1]) + Tools.debugLine("Particles", Particles.count()) + Tools.debugLine("Doodads", i[0] + " / " + i[1]) + '<div class="spacer"></div>' + o + Tools.debugLine("Camera", `${Math.round(x)}, ${Math.round(y)}\n${Math.round(x + game.screenX / game.scale)}, ${Math.round(y + game.screenY / game.scale)}`) + Tools.debugLine("Scale", game.scale.toFixed(2)) + Tools.debugLine("Jitter", game.jitter.toFixed(3)) + '<div class="close" onclick="Tools.hideDebug()">x</div>';
     $("#debug").html(a),
     game.debug.last = e,
     game.debug.ticks = 0,
@@ -662,4 +701,21 @@ Tools.mungeNonAscii = function(s, id)
     }
 
     return 'player#' + id;
+};
+
+Tools.isPointInsidePolygon = function(point, vs) {
+    //https://stackoverflow.com/questions/22521982/check-if-point-is-inside-a-polygon 
+    var x = point[0], y = point[1];
+    
+    var inside = false;
+    for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        var xi = vs[i][0], yi = vs[i][1];
+        var xj = vs[j][0], yj = vs[j][1];
+        
+        var intersect = ((yi > y) != (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    
+    return inside;
 };

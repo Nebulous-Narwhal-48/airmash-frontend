@@ -19,8 +19,10 @@ Players.update = function() {
     } else if (null != game.myID) {
         if (null == (n = playersById[game.myID]))
             return;
-        0 == n.status && UI.updateHUD(n.health, n.energy, n),
-        Graphics.setCamera(n.pos.x, n.pos.y)
+        if (0 == n.status)
+            UI.updateHUD(n.health, n.energy, n);
+        if (!game.freeCamera)
+            Graphics.setCamera(n.pos.x, n.pos.y);
     }
 };
 

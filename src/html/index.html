@@ -43,14 +43,15 @@
             </div>
         </div></noscript>
         <div id="login-ui">
-            <div id="smallmenu">
-                <a href= "https://www.reddit.com/r/airmash/" target="_blank" rel="noopener">Discussion</a>
-                <a href="https://github.com/airmash-refugees/airmash-frontend/" target="_blank" rel="noopener">GitHub</a>
+            <div class="smallmenu">
+                <a href="javascript:void(0)" id="skinbutton">Change skin</a>
+                <a href="javascript:void(0)" onclick="Tools.setDebugOptions({editor_mode:true})">Map editor</a>
+                <a href="https://github.com/Nebulous-Narwhal-48/ab-server" target="_blank" rel="noopener">GitHub</a>
             </div>
             <div id="logout">
                 &nbsp;
             </div>
-            <div id="logon" style="height: 320px">
+            <div id="logon">
                 <div class="logo">
                 </div><input id="playername" type="text" autofocus=""
                 autocomplete="off" spellcheck="false" placeholder=
@@ -58,27 +59,6 @@
                 <div class="playoptions">
                     <div class="hoverable" id="playregion"></div>
                     <div class="hoverable" id="playtype"></div>
-                    <style>
-                        #logon .playoptions {
-                            height: 80px;
-                        }
-
-                        #logon .playoptions #skin {
-                            position: absolute;
-                            left: 0px;
-                            top: 50px;
-                            width: 190px;
-                            height: 40px;
-                            border-radius: 5px;
-                            border-bottom: 2px solid #141414;
-                            background-color: #1e1e1e;
-                            color: #d2d2d2;
-                            box-sizing: border-box;
-                            box-shadow: 0 0 16px 0 rgba(0, 0, 0, 0.6);
-                            cursor: default
-                        }
-                    </style>
-                    <div class="hoverable" id="skin"></div>
                 </div>
                 <div class="buttons">
                     <span id="playbutton">PLAY AS GUEST</span>
@@ -547,9 +527,7 @@
             </div>
             <div class="links">
                 <a href= "https://www.reddit.com/r/airmash/" target="_blank" rel="noopener">Discussion</a>
-                <a href="https://github.com/airmash-refugees/airmash-frontend/" target="_blank" rel="noopener">GitHub</a>
-                <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
-                <a href="/contact" target="_blank" rel="noopener">Contact</a>
+                <a href="https://github.com/Nebulous-Narwhal-48/ab-server" target="_blank" rel="noopener">GitHub</a>
             </div>
             <div class="login" id="logout-mainmenu">
             </div>
@@ -604,21 +582,101 @@
                 </div>
             </div>
         </div>
+        <div id="skinmenu">
+            <div class="header">
+                Change skin
+            </div>
+            <div class="skins">
+
+            </div>
+        </div>
         <div id="debug" class="debug"></div>
         <div id="debug_options" class="debug" style="right: 50px; width:200px">
-            <div class="line">Client</div>
-            <div class="line"><div class="attr" style="width:150px">Collisions</div><div class="val"><input id="config_debug_collisions" type="checkbox" onchange="Tools.setDebugOptions({collisions:this.checked})"></div></div>
-            <div class="line"><div class="attr" style="width:150px">Hide container: map</div><div class="val"><input id="config_debug_hide_container_map" type="checkbox" onchange="Tools.setDebugOptions({hide_container_map:this.checked})"></div></div>
-            <div class="line"><div class="attr" style="width:150px">Hide container: sea</div><div class="val"><input id="config_debug_hide_container_sea" type="checkbox" onchange="Tools.setDebugOptions({hide_container_sea:this.checked})"></div></div>
-            <div class="line"><div class="attr" style="width:150px">Hide container: shadows</div><div class="val"><input id="config_debug_hide_container_shadows" type="checkbox" onchange="Tools.setDebugOptions({hide_container_shadows:this.checked})"></div></div>
-            <div class="line"><div class="attr" style="width:150px">Hide texture: player</div><div class="val"><input id="config_debug_hide_texture_player" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_player:this.checked})"></div></div>
-            <div class="line"><div class="attr" style="width:150px">Hide texture: thruster</div><div class="val"><input id="config_debug_hide_texture_thruster" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_thruster:this.checked})"></div></div>
-            <div class="line"><div class="attr" style="width:150px">Hide texture: mountains</div><div class="val"><input id="config_debug_hide_texture_mountains" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_mountains:this.checked})"></div></div>
-            <div class="line"><div class="attr" style="width:150px">Log packets</div><div class="val"><input id="config_debug_log_packets" type="checkbox" onchange="Tools.setDebugOptions({log_packets:this.checked})"></div></div>
-            <div class="line"><div class="attr" style="width:150px">Mock server</div><div class="val"><input id="config_debug_mock_server" type="checkbox" onchange="Tools.setDebugOptions({mock_server:this.checked})"></div></div>
-            <div class="line">Server</div>
-            <div class="line"><div class="attr" style="width:150px">Remove mountains</div><div class="val"><input id="config_debug_remove_mountains" type="checkbox" onchange="Tools.setDebugOptions({remove_mountains:this.checked})"></div></div>
-            <div class="line"><div class="attr" style="width:150px">Teleport</div><div class="val"><select id="config_debug_teleport" style="max-width: 50px;" onchange="Tools.setDebugOptions({teleport:this.value})"><option></option><option>0,0</option><option>red_base</option><option>blue_base</option></select></div></div>
+            <div class="debug_client">
+                <div class="line">Client</div>
+                <div class="line"><div class="attr" style="width:150px">Collisions</div><div class="val"><input id="config_debug_collisions" type="checkbox" onchange="Tools.setDebugOptions({collisions:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide container: map</div><div class="val"><input id="config_debug_hide_container_map" type="checkbox" onchange="Tools.setDebugOptions({hide_container_map:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide container: sea</div><div class="val"><input id="config_debug_hide_container_sea" type="checkbox" onchange="Tools.setDebugOptions({hide_container_sea:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide container: shadows</div><div class="val"><input id="config_debug_hide_container_shadows" type="checkbox" onchange="Tools.setDebugOptions({hide_container_shadows:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide texture: sea mask</div><div class="val"><input id="config_debug_hide_texture_sea_mask" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_sea_mask:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide texture: player</div><div class="val"><input id="config_debug_hide_texture_player" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_player:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide texture: thruster</div><div class="val"><input id="config_debug_hide_texture_thruster" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_thruster:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide texture: mountains</div><div class="val"><input id="config_debug_hide_texture_mountains" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_mountains:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide texture: rock</div><div class="val"><input id="config_debug_hide_texture_rock" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_rock:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide mask: rock</div><div class="val"><input id="config_debug_hide_mask_rock" type="checkbox" onchange="Tools.setDebugOptions({hide_mask_rock:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide texture: sand</div><div class="val"><input id="config_debug_hide_texture_sand" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_sand:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide mask: sand</div><div class="val"><input id="config_debug_hide_mask_sand" type="checkbox" onchange="Tools.setDebugOptions({hide_mask_sand:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide texture: forest</div><div class="val"><input id="config_debug_hide_texture_forest" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_forest:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Hide mask: map (polygons)</div><div class="val"><input id="config_debug_hide_mask_map" type="checkbox" onchange="Tools.setDebugOptions({hide_mask_map:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Log packets</div><div class="val"><input id="config_debug_log_packets" type="checkbox" onchange="Tools.setDebugOptions({log_packets:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Mock server</div><div class="val"><input id="config_debug_mock_server" type="checkbox" onchange="Tools.setDebugOptions({mock_server:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Editor mode</div><div class="val"><input id="config_debug_editor_mode" type="checkbox" onchange="Tools.setDebugOptions({editor_mode:this.checked})"></div></div>
+            </div>
+            <div class="debug_server">
+                <div class="line">Server</div>
+                <div class="line"><div class="attr" style="width:150px">Remove mountains</div><div class="val"><input id="config_debug_remove_mountains" type="checkbox" onchange="Tools.setDebugOptions({remove_mountains:this.checked})"></div></div>
+                <div class="line"><div class="attr" style="width:150px">Teleport</div><div class="val"><select id="config_debug_teleport" style="max-width: 50px;" onchange="Tools.setDebugOptions({teleport:this.value})"><option></option><option>0,0</option><option>red_base</option><option>blue_base</option></select></div></div>
+            </div>
+            <div class="debug_editor" style="display: none;">
+                <div class="line">Editor</div>
+                <div class="line"><div class="attr">Command</div><div class="val"><select id="config_debug_editor_action" onchange="Input.editorCmd(this.value)">
+                    <option></option>
+                    <option value="load">Load map</option>
+                    <option value="export">Export map</option>
+                    <option value="set_bounds">Set map size</option>
+                    <option value="select_mountain">Select mountain</option>
+                    <option value="place_mountain">Place mountain</option>
+                    <option value="select_polygon">Select polygon</option>
+                    <option value="draw_polygon">Draw polygon</option>
+                    <option value="paint">Paint</option>
+                    <option value="bases">Set ctf bases</option>
+                </select></div></div>
+                <div class="cmd_detail set_bounds" style="display: none;">
+                    <div class="line"><div class="attr">
+                        min_x<input id="min_x" type="number" min="-16384" max="16384" value="-16384" onchange="Input.editorCmd('set_bounds', {min_x:this.value})"><br>
+                        min_y<input id="min_y" type="number" min="-8192" max="8192" value="-8192" onchange="Input.editorCmd('set_bounds', {min_y:this.value})"><br>
+                        max_x<input id="max_x" type="number" min="-16384" max="16384" value="16384" onchange="Input.editorCmd('set_bounds', {max_x:this.value})"><br>
+                        max_y<input id="max_y" type="number" min="-8192" max="8192" value="8192" onchange="Input.editorCmd('set_bounds', {max_y:this.value})"><br>
+                    </div><div class="val"></div></div>
+                </div>
+                <div class="cmd_detail load" style="display: none;">
+                    <div class="line"><div class="attr">
+                        Map id<input type="text" onchange="Input.editorCmd('load', {mapId:this.value})">
+                    </div><div class="val"></div></div>
+                </div>
+                <div class="cmd_detail export" style="display: none;">
+                    <div class="line"><div class="attr">
+                        <a href="javascript:void(0);" onclick="Input.editorCmd('export', {file:'map.json'})">map.json</a><br>
+                        <a href="javascript:void(0);" onclick="Input.editorCmd('export', {file:'map_rock_mask.jpg'})">map_rock_mask.jpg</a><br>
+                        <a href="javascript:void(0);" onclick="Input.editorCmd('export', {file:'map_sand_mask.jpg'})">map_sand_mask.jpg</a><br>
+                        <a href="javascript:void(0);" onclick="Input.editorCmd('export', {file:'map_sea_mask.jpg'})">map_sea_mask.jpg</a><br>
+                        <a href="javascript:void(0);" onclick="Input.editorCmd('export', {file:'gui.png'})">gui.png</a><br>
+                    </div><div class="val"></div></div>
+                </div>
+                <div class="cmd_detail select_mountain" style="display: none;">
+                    <div class="line"><div class="attr"><button onclick="Input.editorCmd('delete_mountain')">delete</button></div><div class="val"></div></div>
+                </div>
+                <div class="cmd_detail place_mountain" style="display: none;">
+                    <div class="line"><div class="attr">
+                        Size<input type="text" onchange="Input.editorCmd('place_mountain', {mountain_scale:this.value})" value="0.9">
+                    </div><div class="val"></div></div>
+                </div>
+                <div class="cmd_detail select_polygon" style="display: none;">
+                    <div class="line"><div class="attr"><button onclick="Input.editorCmd('delete_polygon')">delete</button></div><div class="val"></div></div>
+                </div>
+                <div class="cmd_detail paint" style="display: none;">
+                    <div class="line"><div class="attr">
+                        <select onchange="Input.editorCmd('paint', {type:this.value})"><option value="+rock">+rock</option><option value="-rock">-rock</option><option value="+sand">+sand</option><option value="-sand">-sand</option>><option value="+sea">+sea</option>><option value="-sea">-sea</option></select>
+                        <br>brush radius<input type="number" onchange="Input.editorCmd('paint', {radius:this.value})" min="1" max="999" value="10">gradient<input type="checkbox" onchange="Input.editorCmd('paint', {gradient:this.checked})" checked>
+                    </div><div class="val"></div></div>
+                </div>
+                <div class="cmd_detail bases" style="display: none;">
+                    <div class="line"><div class="attr">
+                        blue x,y<input type="text" onchange="Input.editorCmd('bases', {blue_base:this.value})" value="-9670, -1470"><br>
+                        red x,y<input type="text" onchange="Input.editorCmd('bases', {red_base:this.value})" value="8600, -940">
+                    </div><div class="val"></div></div>
+                </div>
+            </div>
             <div class="close" style="right:14px" onclick="Tools.minimizeDebugOptions()">_</div>
             <div class="close" style="right:0px;" onclick="Tools.hideDebugOptions()">x</div>
         </div>

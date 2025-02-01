@@ -17,6 +17,7 @@ var minimapMobs = {},
     lastClickedPlayerId = null,
     isHelpVisible = false,
     isMainMenuVisible = false,
+    isSkinMenuVisible = false,
     isTooltipVisible = false,
     hideTooltipTimer = null,
     tooltipId = 0,
@@ -909,10 +910,19 @@ UI.chatBoxOpen = function() {
 };
 
 UI.setupMinimap = function() {
-    game.graphics.gui.minimap = Textures.init("minimap"),
-    game.graphics.gui.minimap_box = Textures.init("minimapBox"),
-    UI.resizeMinimap(),
-    UI.visibilityMinimap(false)
+    if (game.graphics.gui.minimap) {
+        if (game.graphics.gui.minimap.mask) {
+            game.graphics.gui.minimap.removeChild(game.graphics.gui.minimap.mask);
+            game.graphics.gui.minimap.mask.destroy();
+        }
+        game.graphics.layers["ui0"].removeChild(game.graphics.gui.minimap);
+        game.graphics.gui.minimap.destroy();
+    }
+    game.graphics.gui.minimap = Textures.init("minimap");
+    if (!game.graphics.gui.minimap_box)
+        game.graphics.gui.minimap_box = Textures.init("minimapBox");
+    UI.resizeMinimap();
+    UI.visibilityMinimap(game.state === Network.STATE.PLAYING);
 };
 
 UI.visibilityMinimap = function(isVisible) {
@@ -927,6 +937,45 @@ UI.resizeMinimap = function() {
     for (var playerId in minimapMobs)
         updateMinimapMob(minimapMobs[playerId]);
     Games.update(true)
+};
+
+UI.maskMinimap = function() {
+    if (!game.graphics.gui.minimap)
+        return;
+
+    // mask
+    if (game.graphics.gui.minimap.mask) {
+        game.graphics.gui.minimap.removeChild(game.graphics.gui.minimap.mask);
+        game.graphics.gui.minimap.mask.destroy();
+    }
+    const w = 512, h = 256; // minimap texture size: 512x256
+    const half_w = w/2, half_h = h/2;
+    const bounds = game.server.config.mapBounds;
+    const new_x = (bounds.MIN_X/ 16384)*half_w - half_w; //coords from -512 to 0
+    const new_y = (bounds.MIN_Y/ 8192)*half_h - half_h;  //coords from -256 to 0
+    const new_w = ((bounds.MAX_X - bounds.MIN_X)/32768)*w; 
+    const new_h = ((bounds.MAX_Y - bounds.MIN_Y)/16384)*h;
+    const mask = new PIXI.Graphics();
+    mask.beginFill(0xFFFFFF);
+    mask.drawRect(new_x, new_y, new_w, new_h);
+    mask.endFill();
+    game.graphics.gui.minimap.mask = mask;
+    game.graphics.gui.minimap.addChild(mask);
+
+    // zoom in
+    const f = 512/240;//2.1333; // todo: remove hardcoded 240
+    const zoom = Math.min(4, Math.min(w/new_w, h/new_h));
+    config.minimapSize = 240 * zoom;
+
+    // translate to the center of the bottom right rect(240*120)
+    const new_center_w = ((w+new_x)+new_w/2)*zoom;
+    const new_center_h = ((h+new_y)+new_h/2)*zoom;
+    const old_center_w = w*zoom - half_w;
+    const old_center_h = h*zoom - half_h;
+    config.minimapPaddingX = 16 + (new_center_w - old_center_w)/f;
+    config.minimapPaddingY = 16 + (new_center_h - old_center_h)/f;
+
+    UI.resizeMinimap();
 };
 
 UI.setupHUD = function() {
@@ -1157,6 +1206,49 @@ UI.closeLogin = function() {
     isLoginVisible && (UI.hidePanel("#loginselector"),
     isLoginVisible = false)
 };
+
+UI.openSkinMenu = function() {
+    if (isSkinMenuVisible) return;
+    UI.showPanel("#skinmenu");
+    isSkinMenuVisible = true;
+    Games.closeDropdowns();
+
+    const my_skins = JSON.parse(localStorage.getItem("my_skins")||'[]');
+
+    let html = '';
+    if (my_skins.length > 0) {
+        html += `<div class="item selectable ${!game.skin ? 'sel' : ''}" 
+                onclick="UI.selectSkin(event, '')">
+                <div class="">Default</div>
+        </div>`;
+        for (let url of my_skins) {
+            html += `<div class="item selectable ${game.skin == url ? 'sel' : ''}" 
+                onclick="UI.selectSkin(event, '${url}')">
+                <div class=""><img style="max-width:50px;max-height:50px" src="${url}"></div>
+            </div>`;
+        }
+    } else {
+        html += `<div class="item">
+            <div class="">No skins available</div>
+        </div>`;
+    }
+
+    document.querySelector("#skinmenu .skins").innerHTML = html;
+};
+
+UI.closeSkinMenu = function() {
+    isSkinMenuVisible && (UI.hidePanel("#skinmenu"),
+    isSkinMenuVisible = false)
+};
+
+UI.selectSkin = function(e, skin) {
+    e.stopPropagation();
+    Sound.UIClick();
+    game.skin = skin;
+    document.querySelector("#skinmenu .item.sel")?.classList.remove('sel');
+    e.target.closest('.item').classList.add('sel');
+};
+
 
 UI.showPanel = function(id) {
     var scale0 = 0.9,
@@ -1508,6 +1600,7 @@ UI.popMenu = function(event, closeMenu) {
     if (game.state == Network.STATE.LOGIN) {
         Games.closeDropdowns()
         UI.closeLogin();
+        UI.closeSkinMenu();
         return;
     }
 

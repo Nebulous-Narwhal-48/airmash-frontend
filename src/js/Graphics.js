@@ -9,7 +9,10 @@ var renderer, cameraState = {
     }, 
     pixiTextureByName = {}, 
     pixiSpriteByName = {}, 
-    pixiContainerByName = {};
+    pixiContainerByName = {},
+    loadedMap,
+    userScalingFactor
+    ;
 
 Graphics.setup = function() {
     initGameObjScreenVars(window.innerWidth, window.innerHeight),
@@ -19,8 +22,7 @@ Graphics.setup = function() {
     initContainerScales(),
     initPixiTextures(),
     initMapTextures(),
-    Mobs.setupDoodads(),
-    UI.setupMinimap(),
+    Graphics.replaceMap(),
     UI.setupHUD();
     Graphics.updateDebug();
 };
@@ -46,7 +48,8 @@ var setupPixiRenderer = function() {
             return;
         }
     }
-    document.body.appendChild(renderer.view)
+    document.body.appendChild(renderer.view);
+    Graphics.renderer = renderer;
 }
 
 var setupPixiContainers = function() {
@@ -58,6 +61,7 @@ var setupPixiContainers = function() {
         pixiContainerByName.groundobjects.addChild(pixiContainerByName[childContainerName]);
     game.graphics.layers = pixiContainerByName;
     game.graphics.gui = pixiSpriteByName;
+    game.graphics.sprites = pixiTextureByName;
 }
 
 var initPixiTextures = function() {
@@ -120,6 +124,60 @@ Graphics.updateDebug = function() {
 
     pixiContainerByName.map.visible = !config.debug.hide_container_map;
 
+    if (config.debug.hide_texture_forest) {
+        pixiTextureByName.forest.alpha = 0;
+    } else {
+        pixiTextureByName.forest.alpha = 1;
+    }
+
+    if (config.debug.hide_texture_rock) {
+        pixiTextureByName.rock.alpha = 0;
+    } else {
+        pixiTextureByName.rock.alpha = 1;
+    }
+
+    if (config.debug.hide_mask_rock) {
+        if (pixiTextureByName.rock.mask) {
+            pixiContainerByName.map.removeChild(pixiTextureByName.rock.mask);
+            pixiTextureByName.rock.mask = null;
+        }
+    } else {
+        if (!pixiTextureByName.rock.mask) {
+            pixiContainerByName.map.addChild(pixiTextureByName.rock_mask);
+            pixiTextureByName.rock.mask = pixiTextureByName.rock_mask;
+        }
+    }
+
+    if (config.debug.hide_texture_sand) {
+        pixiTextureByName.sand.alpha = 0;
+    } else {
+        pixiTextureByName.sand.alpha = 1;
+    }
+
+    if (config.debug.hide_mask_sand) {
+        if (pixiTextureByName.sand.mask) {
+            pixiContainerByName.map.removeChild(pixiTextureByName.sand.mask);
+            pixiTextureByName.sand.mask = null;
+        }
+    } else {
+        if (!pixiTextureByName.sand.mask) {
+            pixiContainerByName.map.addChild(pixiTextureByName.sand_mask);
+            pixiTextureByName.sand.mask = pixiTextureByName.sand_mask;
+        }
+    }
+
+    if (config.debug.hide_mask_map) {
+        if (pixiContainerByName.map.mask) {
+            pixiContainerByName.map.removeChild(pixiTextureByName.polygons);
+            pixiContainerByName.map.mask = null;
+        }
+    } else {
+        if (!pixiContainerByName.map.mask && pixiTextureByName.polygons) {
+            pixiContainerByName.map.addChild(pixiTextureByName.polygons);
+            pixiContainerByName.map.mask = pixiTextureByName.polygons;
+        }
+    }
+
     if (config.debug.hide_container_sea) {
         pixiTextureByName.sea.alpha = 0;
         pixiTextureByName.sea_mask.alpha = 0;
@@ -133,7 +191,7 @@ Graphics.updateDebug = function() {
         pixiContainerByName.sea.addChild(pixiTextureByName.sea_solid);
     } else {
         pixiTextureByName.sea.alpha = 1;
-        pixiTextureByName.sea_mask.alpha = 0.5;
+        pixiTextureByName.sea_mask.alpha = config.debug.hide_texture_sea_mask ? 0 : 0.5;
         pixiContainerByName.sea.removeChild(pixiTextureByName.sea_solid);
         pixiTextureByName.sea_solid?.destroy();
     }
@@ -207,29 +265,41 @@ var modifyConfigIfMobile = function() {
 };
 
 var initMapTextures = function() {
-    var overdrawWidth = renderer.width + config.overdraw,
+    const mapId = game.server.config.mapId;
+    const overdrawWidth = renderer.width + config.overdraw,
         overdrawHeight = renderer.height + config.overdraw;
-    pixiTextureByName.sea = Textures.tile("map_sea", overdrawWidth, overdrawHeight),
-    pixiTextureByName.sea_mask = Textures.sprite("map_sea_mask"),
-    pixiTextureByName.sea_mask.scale.set(8, 8),
-    pixiTextureByName.sea_mask.blendMode = PIXI.BLEND_MODES.MULTIPLY,
-    pixiTextureByName.sea_mask.alpha = .5,
-    pixiTextureByName.forest = Textures.tile("map_forest", overdrawWidth, overdrawHeight),
-    pixiTextureByName.sand = Textures.tile("map_sand", overdrawWidth, overdrawHeight),
-    pixiTextureByName.sand_mask = Textures.sprite("map_sand_mask"),
-    pixiTextureByName.sand_mask.scale.set(8, 8),
-    pixiTextureByName.sand.mask = pixiTextureByName.sand_mask,
-    pixiTextureByName.rock = Textures.tile("map_rock", overdrawWidth, overdrawHeight),
-    pixiTextureByName.rock_mask = Textures.sprite("map_rock_mask"),
-    pixiTextureByName.rock_mask.scale.set(8, 8),
-    pixiTextureByName.rock.mask = pixiTextureByName.rock_mask,
-    pixiContainerByName.sea.addChild(pixiTextureByName.sea),
+    if (!pixiTextureByName.sea) {
+        pixiTextureByName.sea = Textures.tile("map_sea", overdrawWidth, overdrawHeight);
+        pixiTextureByName.forest = Textures.tile("map_forest", overdrawWidth, overdrawHeight);
+        pixiTextureByName.sand = Textures.tile("map_sand", overdrawWidth, overdrawHeight);
+        pixiTextureByName.rock = Textures.tile("map_rock", overdrawWidth, overdrawHeight);
+        pixiContainerByName.sea.addChild(pixiTextureByName.sea);
+        for (var textureName of ["forest", "sand", "rock"])
+            pixiContainerByName.map.addChild(pixiTextureByName[textureName]);
+        pixiContainerByName.map.addChild(pixiContainerByName.doodads);
+    }
+
+    if (pixiTextureByName.sea_mask) {
+        pixiContainerByName.sea.removeChild(pixiTextureByName.sea_mask);
+        pixiContainerByName.map.removeChild(pixiTextureByName.rock_mask);
+        pixiContainerByName.map.removeChild(pixiTextureByName.sand_mask);
+    }
+    pixiTextureByName.sea_mask = Textures.sprite(`${mapId}_map_sea_mask`);
+    pixiTextureByName.sea_mask.scale.set(8, 8);
+    pixiTextureByName.sea_mask.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+    pixiTextureByName.sea_mask.alpha = .5;
+    pixiTextureByName.sand_mask = Textures.sprite(`${mapId}_map_sand_mask`);
+    pixiTextureByName.sand_mask.scale.set(8, 8);
+    pixiTextureByName.sand.mask = pixiTextureByName.sand_mask;
+    pixiTextureByName.rock_mask = Textures.sprite(`${mapId}_map_rock_mask`);
+    pixiTextureByName.rock_mask.scale.set(8, 8);
+    pixiTextureByName.rock.mask = pixiTextureByName.rock_mask;
+
     pixiContainerByName.sea.addChild(pixiTextureByName.sea_mask);
-    for (var textureName of ["forest", "sand", "sand_mask", "rock", "rock_mask"])
+    for (var textureName of ["sand_mask", "rock_mask"])
         pixiContainerByName.map.addChild(pixiTextureByName[textureName]);
-    pixiContainerByName.map.addChild(pixiContainerByName.doodads),
-    createMapFromJson(),
-    initTextureScalesAndMasks()
+
+    initTextureScalesAndMasks();
 };
 
 var initTextureScalesAndMasks = function() {
@@ -241,35 +311,124 @@ var initTextureScalesAndMasks = function() {
 };
 
 var initPolygonsScale = function() {
-    pixiTextureByName.polygons.scale.x = game.scale,
-    pixiTextureByName.polygons.scale.y = game.scale
+    pixiTextureByName.polygons.scale.x = game.scale;
+    pixiTextureByName.polygons.scale.y = game.scale;
+    if (pixiTextureByName.polygons_overlay) {
+        pixiTextureByName.polygons_overlay.scale.x = game.scale;
+        pixiTextureByName.polygons_overlay.scale.y = game.scale;
+    }
+};
+Graphics.initPolygonsScale = initPolygonsScale;
+
+Graphics.fetchMapJson = async function() {
+    const mapId = game.server.config.mapId;
+    const cache_key = `assets/maps/${mapId}/map.json`;
+    const cache = await caches.open('map_cache');
+    const res = await cache.match(cache_key);
+    if (res && !location.search.includes('nocache')) {
+        var {doodads, groundDoodads, walls, polygons, bounds, objects} = await res.json();
+    } else {
+        console.log('fetching map', mapId);
+        var {doodads, groundDoodads, walls, polygons, bounds, objects} = await fetch(`assets/maps/${mapId}/map.json`).then(res=>res.json());
+        await cache.put(cache_key, new Response(JSON.stringify({doodads, groundDoodads, walls, polygons, bounds, objects})));
+    }
+    return {doodads, groundDoodads, walls, polygons, bounds, objects};
 };
 
-var createMapFromJson = function() {
-    fetch("assets/map.json").then(res=>res.json()).then(mapResponse=>{
-        pixiTextureByName.polygons = new PIXI.Graphics,
-        pixiTextureByName.polygons.beginFill();
-        var t, r, o, points, a, l, u, c = 0, h = 0, d = 0;
-        for (l = 0; l < mapResponse.length; l++)
-            for (o = 0,
-            u = 0; u < mapResponse[l].length; u++) {
-                for (points = [],
-                a = 0; a < mapResponse[l][u].length; a += 2)
-                    t = mapResponse[l][u][a] + h,
-                    r = mapResponse[l][u][a + 1] + d,
-                    points.push(parseFloat(t), -parseFloat(r)),
-                    h = t,
-                    d = r,
-                    c++;
-                pixiTextureByName.polygons.drawPolygon(points),
-                0 != o && pixiTextureByName.polygons.addHole(),
-                o++
+Graphics.createMapFromJson = async function(json) {
+    if (json) {
+        var {doodads, groundDoodads, walls, polygons, bounds, objects} = JSON.parse(json);
+    } else {
+        var {doodads, groundDoodads, walls, polygons, bounds, objects} = await Graphics.fetchMapJson();
+    }
+
+    config.doodads = doodads;
+    config.groundDoodads = groundDoodads;
+    config.walls = walls;
+    config.polygons = polygons;
+    config.objects = objects;
+
+    // reset mountains, ground doodads
+    Mobs.setupDoodads();
+
+    // update debug
+    if (Graphics.gfx) {
+        pixiContainerByName.objects.removeChild(Graphics.gfx);
+        Graphics.gfx.destroy();
+        Graphics.gfx = null;
+        Graphics.updateDebug();
+    }
+
+    // clear polygons
+    if (pixiContainerByName.map.mask) {
+        pixiContainerByName.map.removeChild(pixiTextureByName.polygons);
+        pixiContainerByName.map.mask = null;
+    }
+
+    pixiTextureByName.polygons = new PIXI.Graphics;
+    pixiTextureByName.polygons.beginFill();
+    var t, r, o, points, a, l, u, c = 0, h = 0, d = 0;
+    for (l = 0; l < polygons.length; l++) {
+        for (o = 0, u = 0; u < polygons[l].length; u++) {
+            for (points = [], a = 0; a < polygons[l][u].length; a += 2) {
+                t = polygons[l][u][a] + h;
+                r = polygons[l][u][a + 1] + d;
+                points.push(parseFloat(t), -parseFloat(r));
+                h = t;
+                d = r;
+                c++;
             }
-        pixiTextureByName.polygons.endFill(),
-        initPolygonsScale(),
-        pixiContainerByName.map.addChild(pixiTextureByName.polygons),
-        pixiContainerByName.map.mask = pixiTextureByName.polygons
-    })
+            pixiTextureByName.polygons.drawPolygon(points);
+            0 != o && pixiTextureByName.polygons.addHole();
+            o++;
+        }
+    }
+    pixiTextureByName.polygons.endFill();
+    initPolygonsScale();
+    pixiContainerByName.map.addChild(pixiTextureByName.polygons);
+    pixiContainerByName.map.mask = pixiTextureByName.polygons;
+
+    loadedMap = game.server.config.mapId;
+};
+
+
+Graphics.replaceMap = function() {
+    console.log('replaceMap', game.server.config.mapId)
+    // update scalingFactor and resize if map bounds smaller than screen (TODO: also prevent user from increasing scaligFactor if that's the case)
+    const cur_scaling_factor = UI.getScalingFactor();
+    if (userScalingFactor) {
+        config.settings.scalingFactor = userScalingFactor;
+        game.scale = (game.screenX + game.screenY) / userScalingFactor;
+        userScalingFactor = null;
+    }
+    let scalingFactor = UI.getScalingFactor();
+    while (game.screenX > (game.server.config.mapBounds.MAX_X - game.server.config.mapBounds.MIN_X)*game.scale || game.screenY > (game.server.config.mapBounds.MAX_Y - game.server.config.mapBounds.MIN_Y)*game.scale) {
+        scalingFactor -= 100;
+        game.scale = (game.screenX + game.screenY) / scalingFactor;
+    }
+    if (scalingFactor !== cur_scaling_factor) {
+        console.log('changing scalingFactor', scalingFactor);
+        userScalingFactor = config.settings.scalingFactor;
+        config.settings.scalingFactor = scalingFactor;
+        Graphics.resizeRenderer(window.innerWidth, window.innerHeight);
+    }
+
+    if (loadedMap == game.server.config.mapId) {
+        UI.maskMinimap();
+        return;
+    }
+
+    for (let k of ["sea", "sand", "rock"])
+        Textures.add(`${game.server.config.mapId}_map_${k}_mask`, `assets/maps/${game.server.config.mapId}/map_${k}_mask.jpg`);
+    initMapTextures();
+
+    Textures.delete("gui");
+    Textures.delete("ui_minimap");
+    Textures.add("gui", `assets/maps/${game.server.config.mapId}/gui.png`);
+    UI.setupMinimap();
+    UI.maskMinimap();
+
+    Graphics.createMapFromJson();
 };
 
 Graphics.initSprite = function(name, container, properties) {
@@ -310,21 +469,26 @@ Graphics.update = function() {
 Graphics.setCamera = function(e, n) {
     var r = 0,
         i = 0;
-    cameraState.shake > .5 && (r = Tools.rand(-cameraState.shake, cameraState.shake),
-    i = Tools.rand(-cameraState.shake, cameraState.shake),
-    cameraState.shake *= 1 - .06 * game.timeFactor);
+    if (cameraState.shake > .5) {
+        r = Tools.rand(-cameraState.shake, cameraState.shake);
+        i = Tools.rand(-cameraState.shake, cameraState.shake);
+        cameraState.shake *= 1 - .06 * game.timeFactor;
+    };
     var o = game.halfScreenX / game.scale,
         s = game.halfScreenY / game.scale;
-    e = Tools.clamp(e, -16384 + o, 16384 - o),
-    n = Tools.clamp(n, -8192 + s, 8192 - s),
-    cameraState.position.x = r + e - game.screenX / 2 / game.scale,
-    cameraState.position.y = i + n - game.screenY / 2 / game.scale,
-    cameraState.center.x = r + e,
-    cameraState.center.y = i + n
+    e = Tools.clamp(e, game.server.config.mapBounds.MIN_X + o, game.server.config.mapBounds.MAX_X - o);
+    n = Tools.clamp(n, game.server.config.mapBounds.MIN_Y + s, game.server.config.mapBounds.MAX_Y - s);
+    cameraState.position.x = r + e - game.screenX / 2 / game.scale;
+    cameraState.position.y = i + n - game.screenY / 2 / game.scale;
+    cameraState.center.x = r + e;
+    cameraState.center.y = i + n;
 };
 
 Graphics.getCamera = function() {
     return cameraState.center
+};
+Graphics.getCameraState = function() {
+    return cameraState;
 };
 
 Graphics.shakeCamera = function(e, n) {
@@ -374,11 +538,13 @@ var redrawBackground = function() {
         pixiTextureByName[textureName].tilePosition.set(a, l);
     for (textureName of ["sea", "sand", "rock"])
         pixiTextureByName[textureName + "_mask"].position.set(u, c);
-    null != pixiTextureByName.polygons && null != pixiTextureByName.polygons.position && pixiTextureByName.polygons.position.set(-o * game.scale, -s * game.scale),
-    cameraState.lastOverdrawTime = game.time,
-    renderer.render(pixiContainerByName.sea, pixiTextureByName.render),
-    renderer.render(pixiContainerByName.map, pixiTextureByName.render)
+    null != pixiTextureByName.polygons && null != pixiTextureByName.polygons.position && pixiTextureByName.polygons.position.set(-o * game.scale, -s * game.scale);
+    null != pixiTextureByName.polygons_overlay && null != pixiTextureByName.polygons_overlay.position && pixiTextureByName.polygons_overlay.position.set(-o * game.scale, -s * game.scale);
+    cameraState.lastOverdrawTime = game.time;
+    renderer.render(pixiContainerByName.sea, pixiTextureByName.render);
+    renderer.render(pixiContainerByName.map, pixiTextureByName.render);
 };
+Graphics.redrawBackground = redrawBackground;
 
 Graphics.render = function() {
     renderer.render(pixiContainerByName.shadows, pixiTextureByName.shadows, true),

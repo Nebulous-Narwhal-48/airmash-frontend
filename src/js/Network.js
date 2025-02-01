@@ -395,6 +395,13 @@ var handleCustomMessage = function(msg) {
             game.gameType = parsedData.type;
             game.force_update_teams = true;
             Games.prep();
+            break;
+        case 203:
+            game.server.config.playerBounds = parsedData.playerBounds;
+            game.server.config.mapBounds = parsedData.mapBounds;
+            game.server.config.mapId = parsedData.mapId;
+            Graphics.replaceMap();
+            break;
     }
 };
 
@@ -421,6 +428,13 @@ var handleServerConfigUpdate = function(data) {
         config = JSON.parse(data)
     } catch (e) {}
     game.server.config = config;
+    if (!config.playerBounds)
+        game.server.config.playerBounds = {MIN_X: -16352, MIN_Y: -8160, MAX_X: 16352, MAX_Y: 8160};
+    if (!config.mapBounds)
+        game.server.config.mapBounds = {MIN_X: -16384, MIN_Y: -8192, MAX_X: 16384, MAX_Y: 8192};
+    if (!config.mapId)
+        game.server.config.mapId = 'vanilla';
+    Graphics.replaceMap();
 }
 
 var shouldDiscardTimestampedMessage = function(msg) {
@@ -471,6 +485,7 @@ Network.setup = function() {
         if (true) {
             const my_skins = localStorage.getItem('my_skins');
             session.custom_data = {url:game.skin, my_skins_len: my_skins && JSON.parse(my_skins).length};
+            if (window.DEVELOPMENT && location.href.includes('localhost') && ["a","b"].includes(game.myName)) session.token = game.myName;//test logged in user (must be enabled in server (enableTestAccounts))
         }
         sendMessageDict({
             c: ClientPacket.LOGIN,
@@ -1090,7 +1105,7 @@ function mock_server() {
             //LOGIN
             } else if (msg.c === 0) {
                 let server_msg = {
-                    c: 0,
+                    c: ServerPacket.LOGIN,
                     success: true,
                     id: 1033,
                     team: 1033,
@@ -1117,6 +1132,10 @@ function mock_server() {
                     bots: [ /*{ id: 1033 }*/ ]
                   };
                 this.callback({data:server_msg});
+
+                // show flags
+                this.callback({data:{c:ServerPacket.GAME_FLAG, type:1, flag:1, posX:config.objects.bases[1][0], posY:config.objects.bases[1][1]}});
+                this.callback({data:{c:ServerPacket.GAME_FLAG, type:1, flag:2, posX:config.objects.bases[2][0], posY:config.objects.bases[2][1]}});
             }
         }
 

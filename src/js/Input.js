@@ -208,22 +208,33 @@ var lastTransmittedKeyState = {},
 Input.setup = function() {
     for (var name in keyCodeByName)
         keyNameByCode[keyCodeByName[name]] = name;
-    p = JSON.parse(JSON.stringify(keyBindDescription)),
-    initKeyBindsFromSettings(),
-    updateKeybindsList(true),
-    $(window).on("keydown", onWindowKeyDown),
-    $(window).on("keyup", onWindowKeyUp),
-    $(window).on("gamepadconnected", function(e) {
-        UI.showMessage("alert", '<span class="info">GAMEPAD CONNECTED</span>' + UI.escapeHTML(e.originalEvent.gamepad.id), 3e3),
-        isGamepadConnected = true,
-        resetNetworkKeyState()
-    }),
-    $(window).on("gamepaddisconnected", function(e) {
-        UI.showMessage("alert", '<span class="info">GAMEPAD DISCONNECTED</span>' + UI.escapeHTML(e.originalEvent.gamepad.id), 3e3),
-        isGamepadConnected = false,
-        resetNetworkKeyState()
-    })
+    p = JSON.parse(JSON.stringify(keyBindDescription));
+    initKeyBindsFromSettings();
+    updateKeybindsList(true);
+    window.addEventListener("keydown", onWindowKeyDown);
+    window.addEventListener("keyup", onWindowKeyUp);
+    window.addEventListener("gamepadconnected", onGamePadConnected);
+    window.addEventListener("gamepaddisconnected", onGamePadDisconnected);    
 };
+
+Input.unsetup = function() {
+    window.removeEventListener("keydown", onWindowKeyDown);
+    window.removeEventListener("keyup", onWindowKeyUp);
+    window.removeEventListener("gamepadconnected", onGamePadConnected);
+    window.removeEventListener("gamepaddisconnected", onGamePadDisconnected);
+};
+
+function onGamePadConnected(e) {
+    UI.showMessage("alert", '<span class="info">GAMEPAD CONNECTED</span>' + UI.escapeHTML(e.originalEvent.gamepad.id), 3e3),
+    isGamepadConnected = true,
+    resetNetworkKeyState()
+}
+
+function onGamePadDisconnected(e) {
+    UI.showMessage("alert", '<span class="info">GAMEPAD DISCONNECTED</span>' + UI.escapeHTML(e.originalEvent.gamepad.id), 3e3),
+    isGamepadConnected = false,
+    resetNetworkKeyState()
+}
 
 var onWindowKeyDown = function(event) {
     if (game.state == Network.STATE.PLAYING || game.state == Network.STATE.CONNECTING) {

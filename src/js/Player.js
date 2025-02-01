@@ -1002,17 +1002,17 @@ class Player {
 
             this.rot = (this.rot % twoPi + twoPi) % twoPi;
             if (-1 != game.gameType) {
-                if (this.pos.x < -16352) {
-                    this.pos.x = -16352;
+                if (this.pos.x < game.server.config.playerBounds.MIN_X) {
+                    this.pos.x = game.server.config.playerBounds.MIN_X;
                 }
-                if (this.pos.x > 16352) {
-                    this.pos.x = 16352;
+                if (this.pos.x > game.server.config.playerBounds.MAX_X) {
+                    this.pos.x = game.server.config.playerBounds.MAX_X;
                 }
-                if (this.pos.y < -8160) {
-                    this.pos.y = -8160;
+                if (this.pos.y < game.server.config.playerBounds.MIN_Y) {
+                    this.pos.y = game.server.config.playerBounds.MIN_Y;
                 }
-                if (this.pos.y > 8160) {
-                    this.pos.y = 8160;
+                if (this.pos.y > game.server.config.playerBounds.MAX_Y) {
+                    this.pos.y = game.server.config.playerBounds.MAX_Y;
                 }
             } else {
                 if (this.pos.x < -16384) {

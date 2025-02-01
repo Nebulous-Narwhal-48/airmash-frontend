@@ -1160,7 +1160,7 @@ input:focus {
     color: #fff
 }
 
-#smallmenu {
+.smallmenu {
     position: absolute;
     left: 50%;
     width: 440px;
@@ -1174,14 +1174,28 @@ input:focus {
     cursor: default;
 }
 
-#smallmenu .greyedout {
+.smallmenu.left {
+    left: 10px;
+    margin-left: 0;
+    text-align: unset;
+}
+
+.smallmenu.right {
+    right: 10px;
+    left: unset;
+    margin-left: 0;
+    text-align: unset;
+    width: unset;
+}
+
+.smallmenu .greyedout {
     position: relative;
     color: #8c8c8c;
     margin-right: 10px;
     padding-left: 16px;
 }
 
-#smallmenu .greyedout .copyright {
+.smallmenu .greyedout .copyright {
     position: absolute;
     display: inline-block;
     left: 0;
@@ -1189,7 +1203,7 @@ input:focus {
     font-size: 18px
 }
 
-#smallmenu a {
+.smallmenu a {
     display: inline-block;
     text-decoration: none;
     outline: none;
@@ -1198,18 +1212,18 @@ input:focus {
     color: #c8c8c8;
 }
 
-#smallmenu a:visited {
+.smallmenu a:visited {
     color: #c8c8c8;
     text-decoration: none
 }
 
-#smallmenu a:hover {
+.smallmenu a:hover {
     color: #fff;
     text-decoration: none;
     background-color: rgba(0, 0, 0, 0.5)
 }
 
-#smallmenu a:active {
+.smallmenu a:active {
     color: #fff;
     text-decoration: none
 }
@@ -3038,6 +3052,60 @@ input:focus {
 #invitefriends .link a:active {
     color: #71ade4;
     text-decoration: none
+}
+
+#skinmenu {
+    display: none;
+    z-index: 3;
+    width: 500px;
+    min-height: 300px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin-left: -250px;
+    margin-top: -235px;
+    background-color: rgba(0, 0, 0, 1.0);
+    box-shadow: 0 10px 59px -9px rgba(0, 0, 0, 0.7);
+    border-radius: 9px;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.3);
+    border-top: 2px solid rgba(255, 255, 255, 0.08);
+    padding: 18px 0 0 0;
+    box-sizing: border-box;
+    cursor: default;
+}
+
+#skinmenu .header {
+    width: 100%;
+    text-align: center;
+    font-weight: bold;
+    font-size: 22px;
+    color: #fff;
+    padding-bottom: 18px;
+}
+
+#skinmenu .skins {
+    width: 100%;
+    text-align: center;
+    font-weight: bold;
+    color: #fff;
+    padding-bottom: 18px;
+}
+
+#skinmenu .item {
+    margin: 10px;
+}
+
+#skinmenu .item.selectable {
+    cursor: pointer;
+    margin-top: 0;
+}
+
+#skinmenu .item.selectable:hover {
+    background-color: #3c3c3c;
+}
+
+#skinmenu .item.sel {
+    background-color: #3c3c3c;
 }
 
 #mainmenu {

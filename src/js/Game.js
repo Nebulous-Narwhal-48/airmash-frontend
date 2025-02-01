@@ -53,7 +53,15 @@ window.game = {
     buckets: [],
     customServerUrl: null,
     backendHost: "data.airmash.online",
-    server: {}
+    server: {
+        config: {
+            playerBounds: {MIN_X: -16352, MIN_Y: -8160, MAX_X: 16352, MAX_Y: 8160},
+            mapBounds: {MIN_X: -16384, MIN_Y: -8192, MAX_X: 16384, MAX_Y: 8192},
+            mapId: 'vanilla',
+        },
+    }, // { id, config: interface LoginServerConfig }
+    editorMode: false,
+    freeCamera: false,
 };
 
 window.config = {
@@ -1281,6 +1289,13 @@ window.config = {
         [8600, -940, "doodadField", .5, 0, null, null],
         [920, -2800, "doodadField", .5, 0, null, null]
     ],
+    objects: {
+        bases: [
+          null,
+          [-9670, -1470], //blue
+          [8600, -940],   //red
+        ]
+    },
     debug: {
         show: true,
         collisions: false
@@ -1350,15 +1365,15 @@ var scheduleOccasionalFrameWhileBlurred = function() {
 };
 
 window.addEventListener('DOMContentLoaded', function(){
-    game.state = Network.STATE.LOGIN,
-    Tools.loadSettings(),
-    Tools.detectCapabilities(),
-    Tools.setupDebug(),
-    Graphics.setup(),
-    Particles.setup(),
-    UI.setup(),
-    Input.setup(),
-    Games.setup(),
+    game.state = Network.STATE.LOGIN;
+    Tools.loadSettings();
+    Tools.detectCapabilities();
+    Tools.setupDebug();
+    Graphics.setup();
+    Particles.setup();
+    UI.setup();
+    Input.setup();
+    Games.setup();
     Sound.setup();
     var ticker = new PIXI.ticker.Ticker;
     ticker.add(scheduleFrame),
