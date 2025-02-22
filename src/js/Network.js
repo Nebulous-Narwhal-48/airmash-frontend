@@ -272,7 +272,11 @@ var dispatchIncomingMessage = function(msg) {
             break;
         case ServerPacket.MOB_UPDATE:
         case ServerPacket.MOB_UPDATE_STATIONARY:
-            Mobs.network(msg, msg.ownerId);
+            if (msg.type >= 97 && msg.type <= 99) {
+                Games.networkControlpoint(msg);
+            } else {
+                Mobs.network(msg, msg.ownerId);
+            }
             break;
         case ServerPacket.MOB_DESPAWN:
             Mobs.despawn(msg);
@@ -397,6 +401,7 @@ var handleCustomMessage = function(msg) {
             Games.prep();
             break;
         case 203:
+            // change map
             game.server.config.playerBounds = parsedData.playerBounds;
             game.server.config.mapBounds = parsedData.mapBounds;
             game.server.config.mapId = parsedData.mapId;

@@ -267,7 +267,8 @@ window.FlagCodeById = {
 window.GameType = {
     FFA: 1,
     CTF: 2,
-    BTR: 3
+    BTR: 3,
+    CONQUEST: 5,
 };
 
 // airmash-protocol-rs/blob/master/src/enums/plane_type.rs

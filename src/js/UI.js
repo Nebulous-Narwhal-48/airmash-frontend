@@ -347,7 +347,7 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
                     livePlayerIdSet[player.id] = true;
                     if (null == minimapMobs[msgRankings[i].id]) {
                         var mobTextureName = "minimapMob";
-                        if ((GameType.CTF == game.gameType || game.server.config.tdmMode) && 1 == player.team) {
+                        if ((GameType.CTF == game.gameType || game.server.config.tdmMode || GameType.CONQUEST == game.gameType) && 1 == player.team) {
                             mobTextureName = "minimapBlue";
                         }
                         minimapMobs[msgRankings[i].id] = {
@@ -445,7 +445,7 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
         let playerNameClass = '';
         let playerScoreClass = '';
         let playerNameColor = '';
-        if (GameType.CTF == game.gameType || game.server.config.tdmMode) {
+        if (GameType.CTF == game.gameType || game.server.config.tdmMode || GameType.CONQUEST == game.gameType) {
             playerNameClass = " team-" + player.team;
             teamScore[player.team] += curPlayerScore;
         } else if (GameType.FFA == game.gameType) {

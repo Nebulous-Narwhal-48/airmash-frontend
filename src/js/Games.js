@@ -15,6 +15,7 @@ const gameTypes = [
     'ffa',
     'ctf',
     'br',
+    'conquest',
     'dev'
 ];
 
@@ -23,6 +24,7 @@ const gameTypeNames = [
     'Free For All',
     'Capture The Flag',
     'Battle Royale',
+    'Conquest',
     'Development'
 ];
 
@@ -54,6 +56,8 @@ if (window.DEVELOPMENT) {
 let isGamesDataEmpty = false;
 
 let ctf = {};
+let conquest = {};
+const blue_color = 0x4076E2, red_color = 0xEA4242;
 
 let firewallSprites = {};
 let minimapFirewallMask = null;
@@ -1087,8 +1091,120 @@ Games.prep = function() {
                 UI.show('#gamespecific');
             }
             break;
+
+        case GameType.CONQUEST:
+            this.reducedFactor = false;
+
+            conquest = { 
+                zones: [],
+                score_blue: 0, 
+                score_red: 0, 
+                blue_bar: null, 
+                red_bar: null, 
+            };
+
+            const bar_width = 200, bar_height = 8;
+            conquest.red_bar = createProgressbar(red_color, 1, bar_width, bar_height);
+            conquest.blue_bar = createProgressbar(blue_color, -1, bar_width, bar_height);
+            updateProgressbar(conquest.red_bar, 0);
+            updateProgressbar(conquest.blue_bar, 0);
+            break;
     }    
 };
+    
+function createControlpoint(name, [x, y], [x1, y1], width, debug) {
+    const w = debug ? 600 : width;
+    const halfwidth = w/2;
+
+    let doodad_field = Textures.init("doodadField", { position: [x, y], scale: 0.5});
+
+    const texture = PIXI.RenderTexture.create(w, w);
+
+    const line = new PIXI.Graphics();
+    //line.pivot.set(halfwidth, halfwidth);
+    if (debug)
+        line.position.set(halfwidth-width/2, halfwidth-width/2);
+
+    const label = new PIXI.Text(name, new PIXI.TextStyle({fill:0xffffff}));
+    label.anchor.set(0.5, 0.5);
+    label.position.set(halfwidth, halfwidth);
+
+    const circle = new PIXI.Graphics();
+    circle.lineStyle(2, 0xFFFFFF, 1);
+    circle.beginFill(0xffffff, 0);
+    circle.drawCircle(halfwidth, halfwidth, halfwidth);
+    circle.endFill();
+
+    const obj = new PIXI.Container();
+    obj.addChild(line);
+    obj.addChild(label);
+    if (debug)
+        obj.addChild(circle);
+
+    const big = new PIXI.Sprite(texture);
+    big.anchor.set(0.5, 0.5);
+    big.x = x;
+    big.y = y;
+    game.graphics.layers.fields.addChild(big);
+
+    const ui = new PIXI.Container();
+    const ui_bg = new PIXI.Sprite(PIXI.Texture.WHITE);
+    ui_bg.width = w;
+    ui_bg.height = w;
+    ui_bg.tint = 0x000000;
+    ui_bg.alpha = 0.2;
+    ui.addChild(ui_bg);
+    const _ui = new PIXI.Sprite(texture);
+    //ui.x = x1;
+    ui.y = y1;
+    ui.scale.set(0.4);
+    ui.addChild(_ui);
+    game.graphics.layers.ui0.addChild(ui);
+    
+    const minimap = new PIXI.Sprite(texture);
+    minimap.anchor.set(0.5, 0.5);
+    minimap.scale.set(0.3);
+    game.graphics.layers.ui2.addChild(minimap);
+    Graphics.minimapMob(minimap, x, y);   
+    
+    return {texture, obj, big, line, label, circle, ui, width, minimap, doodad_field, mapId:game.server.config.mapId};
+}
+
+function createProgressbar(color, direction, width, height) {
+    const mask = new PIXI.Sprite(PIXI.Texture.WHITE);
+    mask.width = width;
+    mask.height = height;
+
+    const container = new PIXI.Container();
+    game.graphics.layers.ui0.addChild(container);
+    container.pivot.set(width/2, height/2);
+    //container.x = Math.round(game.halfScreenX + direction*x_offset);
+    container.y = 50;
+    container.mask = mask;
+    container.addChild(mask);
+
+    const shadow = new PIXI.Sprite(PIXI.Texture.WHITE);
+    shadow.tint = 0x000000;
+    shadow.alpha = 0.2;
+    shadow.width = width;
+    shadow.height = height;
+    container.addChild(shadow);
+
+    const p = new PIXI.Sprite(PIXI.Texture.WHITE);
+    p.tint = color;
+    p.width = width;
+    p.height = height;
+    container.addChild(p);
+
+    return {container, p, direction, width};
+}
+
+function updateProgressbar({p, direction, width}, perc) {
+    if (direction > 0)
+        p.position.set(width - (perc*width), 0);
+    else
+        p.position.set(-width + (perc*width), 0);
+}
 
 Games.wipe = function() {
     // Clear BTR firewall
@@ -1096,6 +1212,9 @@ Games.wipe = function() {
 
     // If exists, clear all CTF graphics
     removeCtfObjects();
+
+    // clear conquest graphics
+    removeConquestObjects();
 };
 
 function removeCtfObjects() {
@@ -1122,6 +1241,85 @@ function removeCtfObjects() {
         ctf.flagBlue = null;
     }
 }
+
+function removeConquestObjects(isMapChange) {
+    if (conquest.zones) {
+        for (let cp of conquest.zones) {
+            game.graphics.layers.fields.removeChild(cp.big);
+            cp.big.destroy();
+            game.graphics.layers.ui0.removeChild(cp.ui);
+            cp.ui.destroy();
+            game.graphics.layers.ui2.removeChild(cp.minimap);
+            cp.minimap.destroy();
+
+            game.graphics.layers.fields.removeChild(cp.doodad_field);
+            cp.doodad_field.destroy();
+
+        }
+        conquest.zones = [];
+
+        if (!isMapChange) {
+            game.graphics.layers.ui0.removeChild(conquest.red_bar.container);
+            conquest.red_bar.container.destroy();
+            game.graphics.layers.ui0.removeChild(conquest.blue_bar.container);
+            conquest.blue_bar.container.destroy();
+        }
+    }
+}
+
+function readIntegers(floatValue) {
+    const floatArray = new Float32Array(1);
+    floatArray[0] = floatValue;
+    const intArray = new Int32Array(floatArray.buffer);
+    const packedInt = intArray[0];
+    const unsignedInt2 = packedInt & 0b11;
+    const unsignedInt14a = (packedInt >> 2) & 0x3FFF;
+    const unsignedInt14b = (packedInt >> 16) & 0x3FFF;
+    const int2 = unsignedInt2 - 2;
+    const int14a = unsignedInt14a - 8192;
+    const int14b = unsignedInt14b - 8192;
+    return [int2, int14a, int14b];
+}
+
+Games.networkControlpoint = function(msg) {
+    console.log('networkControlpoint', msg);
+    // reset if map has changed
+    if (conquest.zones[0] && conquest.zones[0].mapId != game.server.config.mapId) {
+        //if (msg.type !== 97) throw "assert";
+        removeConquestObjects(true);
+    }
+
+    // create controlpoints lazily
+    if (!conquest.zones[msg.id]) {
+        // if (msg.type !== 97 && msg.type !== 98) throw "assert";
+        // if (conquest.zones.length !== msg.id) throw "assert";
+        const width = 56;
+        const i = msg.id;
+        conquest.zones[i] = createControlpoint("ABCDEFGH"[i], [msg.posX, msg.posY], [0, 40],  width);
+
+        Games.update(true);
+    }
+
+    this.reducedFactor = Tools.reducedFactor();
+
+    let zone = conquest.zones[msg.id];
+    // 97, 98, 99: horrible hack to avoid changing protocol, see also server controlpoints.ts
+    if (msg.type === 97 || msg.type === 98) {
+        [zone.team, zone.progress, zone.netplayers] = [0, 0, 0];
+        if (msg.type === 98) {
+            conquest.score_blue = 0;
+            conquest.score_red = 0;            
+        }
+    } else if (msg.type === 99) {
+        [, conquest.score_blue, conquest.score_red] = readIntegers(msg.posX);
+        conquest.score_blue *= 60;
+        conquest.score_red *= 60;
+
+        [zone.team, zone.progress, zone.netplayers] = readIntegers(msg.posY);
+        zone.team = -zone.team;
+    }
+    
+};
 
 /**
  * GAME_FLAG message handler
@@ -1593,6 +1791,44 @@ Games.handleFirewall = function(msg) {
     }
 };
 
+function drawControlpoint(cp, end_progress) {
+    const line = cp.line;
+    const width = cp.width;
+    const square8th = width/2;
+    const total8th = end_progress/8;
+    const total4th = end_progress/4;
+    const factor = square8th/total8th;
+    let p = Math.abs(cp.progress);
+    line.clear();
+    if (p > 0) {
+        line.lineStyle(10, cp.progress > 0 ? red_color : blue_color, 1);
+        line.moveTo(square8th, 0);
+        if (p >= 0)
+        line.lineTo(square8th+Math.min(square8th, p*factor), 0);
+        p -= total8th;
+        if (p >= 0)
+        line.lineTo(width, Math.min(width, p*factor));
+        p -= total4th;
+        if (p >= 0)
+        line.lineTo(width-Math.min(width, p*factor), width);
+        p -= total4th;
+        if (p >= 0)
+        line.lineTo(0, width-Math.min(width, p*factor));
+        p -= total4th;
+        if (p >= 0)
+        line.lineTo(Math.min(square8th, p*factor), 0);  
+    }
+
+    if (cp.team === 0)
+        cp.label.tint = 0xffffff;
+    else if (cp.team === 1)
+        cp.label.tint = blue_color;
+    else if (cp.team === 2)
+        cp.label.tint = red_color;
+
+    Graphics.renderer.render(cp.obj, cp.texture, true);
+}
+
 /**
  * Frame update handler
  */
@@ -1616,7 +1852,60 @@ Games.update = function(isResize) {
                 if (ctf.flagRed)
                     updateCtfFlag(ctf.flagRed, isResize);
                 break;
-
+            case GameType.CONQUEST:
+                if (config.loadedMap == game.server.config.mapId) {
+                    const END_SCORE = config.extra?.conquest_end_score || 60*60*10;
+                    const END_PROGRESS = config.extra?.conquest_end_progress || 600;
+                
+                    let timeFrac = game.timeFactor;
+    
+                    if (this.reducedFactor !== false) {
+                        timeFrac -= this.reducedFactor;
+                        this.reducedFactor = false;
+                    }
+                    
+                    if (timeFrac > 0) {
+                        const roundedFrames = timeFrac > .51 ? Math.round(timeFrac) : 1;
+                        const perLoopEffect = timeFrac / roundedFrames;
+                        for (let cp of conquest.zones) {
+                            for (let i = 0; i < roundedFrames; i++) {
+                                if (cp.team === 1)
+                                    conquest.score_blue += perLoopEffect * 1;
+                                else if (cp.team === 2)
+                                    conquest.score_red += perLoopEffect * 1;
+                                if (conquest.score_blue > END_SCORE)
+                                    conquest.score_blue = END_SCORE;
+                                if (conquest.score_red > END_SCORE)
+                                    conquest.score_red = END_SCORE;
+                                updateProgressbar(conquest.blue_bar, conquest.score_blue/END_SCORE);
+                                updateProgressbar(conquest.red_bar, conquest.score_red/END_SCORE);
+    
+                                cp.progress += perLoopEffect * 1 * Math.sign(cp.netplayers);
+                                if (cp.progress > END_PROGRESS)
+                                    cp.progress = END_PROGRESS;
+                                if (cp.progress < -END_PROGRESS)
+                                    cp.progress = -END_PROGRESS;
+                                drawControlpoint(cp, END_PROGRESS);
+                            }  
+                        }              
+                    }
+                }
+                if(isResize && conquest.zones?.length) {
+                    const space = conquest.zones.length * 25;
+                    let ui_x = Math.round(game.halfScreenX - space/2);
+                    for (let i=0; i<conquest.zones.length; i++) {
+                        const cp = conquest.zones[i];
+                        cp.ui.x = ui_x;
+                        ui_x += 30;
+    
+                        Graphics.minimapMob(cp.minimap, cp.big.x, cp.big.y);
+                    }
+                    const bar_width = 200, bar_margin = 20;
+                    const x_offset = bar_width/2 + Math.abs(space/2) + bar_margin
+                    conquest.red_bar.container.x = Math.round(game.halfScreenX + x_offset);
+                    conquest.blue_bar.container.x = Math.round(game.halfScreenX - x_offset);            
+                }
+                break;
     }
 };
 

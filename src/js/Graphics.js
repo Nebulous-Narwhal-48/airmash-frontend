@@ -10,7 +10,6 @@ var renderer, cameraState = {
     pixiTextureByName = {}, 
     pixiSpriteByName = {}, 
     pixiContainerByName = {},
-    loadedMap,
     userScalingFactor
     ;
 
@@ -326,20 +325,20 @@ Graphics.fetchMapJson = async function() {
     const cache = await caches.open('map_cache');
     const res = await cache.match(cache_key);
     if (res && !location.search.includes('nocache')) {
-        var {doodads, groundDoodads, walls, polygons, bounds, objects} = await res.json();
+        var {doodads, groundDoodads, walls, polygons, bounds, objects, extra} = await res.json();
     } else {
         console.log('fetching map', mapId);
-        var {doodads, groundDoodads, walls, polygons, bounds, objects} = await fetch(`assets/maps/${mapId}/map.json`).then(res=>res.json());
-        await cache.put(cache_key, new Response(JSON.stringify({doodads, groundDoodads, walls, polygons, bounds, objects})));
+        var {doodads, groundDoodads, walls, polygons, bounds, objects, extra} = await fetch(`assets/maps/${mapId}/map.json`).then(res=>res.json());
+        await cache.put(cache_key, new Response(JSON.stringify({doodads, groundDoodads, walls, polygons, bounds, objects, extra})));
     }
-    return {doodads, groundDoodads, walls, polygons, bounds, objects};
+    return {doodads, groundDoodads, walls, polygons, bounds, objects, extra};
 };
 
 Graphics.createMapFromJson = async function(json) {
     if (json) {
-        var {doodads, groundDoodads, walls, polygons, bounds, objects} = JSON.parse(json);
+        var {doodads, groundDoodads, walls, polygons, bounds, objects, extra} = JSON.parse(json);
     } else {
-        var {doodads, groundDoodads, walls, polygons, bounds, objects} = await Graphics.fetchMapJson();
+        var {doodads, groundDoodads, walls, polygons, bounds, objects, extra} = await Graphics.fetchMapJson();
     }
 
     config.doodads = doodads;
@@ -347,6 +346,7 @@ Graphics.createMapFromJson = async function(json) {
     config.walls = walls;
     config.polygons = polygons;
     config.objects = objects;
+    config.extra = extra;
 
     // reset mountains, ground doodads
     Mobs.setupDoodads();
@@ -388,7 +388,8 @@ Graphics.createMapFromJson = async function(json) {
     pixiContainerByName.map.addChild(pixiTextureByName.polygons);
     pixiContainerByName.map.mask = pixiTextureByName.polygons;
 
-    loadedMap = game.server.config.mapId;
+    config.loadedMap = game.server.config.mapId;
+    cameraState.lastOverdrawTime = -2e3;
 };
 
 
@@ -413,7 +414,7 @@ Graphics.replaceMap = function() {
         Graphics.resizeRenderer(window.innerWidth, window.innerHeight);
     }
 
-    if (loadedMap == game.server.config.mapId) {
+    if (config.loadedMap == game.server.config.mapId) {
         UI.maskMinimap();
         return;
     }

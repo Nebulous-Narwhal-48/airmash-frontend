@@ -231,7 +231,7 @@ class Player {
 
     reteam(e) {
         this.team = e;
-        if (GameType.CTF == game.gameType || game.server.config?.tdmMode) {
+        if (GameType.CTF == game.gameType || game.server.config?.tdmMode || GameType.CONQUEST == game.gameType) {
             this.sprites.name.style = new PIXI.TextStyle(this.nameplateTextStyle());
             UI.changeMinimapTeam(this.id, this.team);
         } else {
@@ -242,7 +242,7 @@ class Player {
     }
 
     nameplateTextStyle() {
-        if (GameType.CTF == game.gameType || game.server.config.tdmMode)
+        if (GameType.CTF == game.gameType || game.server.config.tdmMode || GameType.CONQUEST == game.gameType)
             var e = 1 == this.team ? "#4076E2" : "#EA4242";
         else {
             if (this.in_my_team) {
