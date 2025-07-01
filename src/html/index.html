@@ -45,8 +45,8 @@
         <div id="login-ui">
             <div class="smallmenu">
                 <a href="javascript:void(0)" id="skinbutton">Change skin</a>
-                <a href="javascript:void(0)" onclick="Tools.setDebugOptions({editor_mode:true})">Map editor</a>
-                <a href="https://github.com/Nebulous-Narwhal-48/ab-server" target="_blank" rel="noopener">GitHub</a>
+                <a href="javascript:void(0)" onclick="window.startEditor()">Game editor</a>
+                <a href="https://github.com/Nebulous-Narwhal-48/airmash-frontend" target="_blank" rel="noopener">GitHub</a>
             </div>
             <div id="logout">
                 &nbsp;
@@ -57,8 +57,9 @@
                 autocomplete="off" spellcheck="false" placeholder=
                 "Enter your name" maxlength="20">
                 <div class="playoptions">
-                    <div class="hoverable" id="playregion"></div>
-                    <div class="hoverable" id="playtype"></div>
+                    <!-- <div class="hoverable" id="playregion"></div>
+                    <div class="hoverable" id="playtype"></div> -->
+                    <div class="hoverable" id="playserver"></div>
                 </div>
                 <div class="buttons">
                     <span id="playbutton">PLAY AS GUEST</span>
@@ -583,15 +584,15 @@
             </div>
         </div>
         <div id="skinmenu">
-            <div class="header">
-                Change skin
-            </div>
-            <div class="skins">
-
-            </div>
+            <div class="header">Change skin</div>
+            <div class="skins"></div>
+        </div>
+        <div id="servermenu">
+            <div class="header">Choose server</div>
+            <div class="servers"></div>
         </div>
         <div id="debug" class="debug"></div>
-        <div id="debug_options" class="debug" style="right: 50px; width:200px">
+        <div id="debug_options" class="debug" style="right: 50px; width:200px; max-height: 90%; overflow-y: scroll;">
             <div class="debug_client">
                 <div class="line">Client</div>
                 <div class="line"><div class="attr" style="width:150px">Collisions</div><div class="val"><input id="config_debug_collisions" type="checkbox" onchange="Tools.setDebugOptions({collisions:this.checked})"></div></div>
@@ -609,8 +610,6 @@
                 <div class="line"><div class="attr" style="width:150px">Hide texture: forest</div><div class="val"><input id="config_debug_hide_texture_forest" type="checkbox" onchange="Tools.setDebugOptions({hide_texture_forest:this.checked})"></div></div>
                 <div class="line"><div class="attr" style="width:150px">Hide mask: map (polygons)</div><div class="val"><input id="config_debug_hide_mask_map" type="checkbox" onchange="Tools.setDebugOptions({hide_mask_map:this.checked})"></div></div>
                 <div class="line"><div class="attr" style="width:150px">Log packets</div><div class="val"><input id="config_debug_log_packets" type="checkbox" onchange="Tools.setDebugOptions({log_packets:this.checked})"></div></div>
-                <div class="line"><div class="attr" style="width:150px">Mock server</div><div class="val"><input id="config_debug_mock_server" type="checkbox" onchange="Tools.setDebugOptions({mock_server:this.checked})"></div></div>
-                <div class="line"><div class="attr" style="width:150px">Editor mode</div><div class="val"><input id="config_debug_editor_mode" type="checkbox" onchange="Tools.setDebugOptions({editor_mode:this.checked})"></div></div>
             </div>
             <div class="debug_server">
                 <div class="line">Server</div>
@@ -621,7 +620,10 @@
                 <div class="line">Editor</div>
                 <div class="line"><div class="attr">Command</div><div class="val"><select id="config_debug_editor_action" onchange="Input.editorCmd(this.value)">
                     <option></option>
+                    <option value="play">Play</option>
+                    <option disabled>──────────</option>
                     <option value="load">Load map</option>
+                    <option value="save">Save map</option>
                     <option value="export">Export map</option>
                     <option value="set_bounds">Set map size</option>
                     <option value="select_mountain">Select mountain</option>
@@ -630,19 +632,36 @@
                     <option value="draw_polygon">Draw polygon</option>
                     <option value="paint">Paint</option>
                     <option value="bases">Set ctf bases</option>
+                    <option disabled>──────────</option>
+                    <option value="clone_ship">Clone/Delete ship</option>
+                    <option value="edit_ship">Edit ship</option>
+                    <option value="export_ship">Export ship</option>
+                    <option value="control_ship">Control ship</option>
                 </select></div></div>
                 <div class="cmd_detail set_bounds" style="display: none;">
-                    <div class="line"><div class="attr">
-                        min_x<input id="min_x" type="number" min="-16384" max="16384" value="-16384" onchange="Input.editorCmd('set_bounds', {min_x:this.value})"><br>
-                        min_y<input id="min_y" type="number" min="-8192" max="8192" value="-8192" onchange="Input.editorCmd('set_bounds', {min_y:this.value})"><br>
-                        max_x<input id="max_x" type="number" min="-16384" max="16384" value="16384" onchange="Input.editorCmd('set_bounds', {max_x:this.value})"><br>
-                        max_y<input id="max_y" type="number" min="-8192" max="8192" value="8192" onchange="Input.editorCmd('set_bounds', {max_y:this.value})"><br>
-                    </div><div class="val"></div></div>
+                    <div class="line">
+                        <div class="attr">min_x</div><div class="val"><input id="min_x" type="number" min="-16384" max="16384" value="-16384" onchange="Input.editorCmd('set_bounds', {MIN_X:this.value})"></div><br>
+                        <div class="attr">min_y</div><div class="val"><input id="min_y" type="number" min="-8192" max="8192" value="-8192" onchange="Input.editorCmd('set_bounds', {MIN_Y:this.value})"></div><br>
+                        <div class="attr">max_x</div><div class="val"><input id="max_x" type="number" min="-16384" max="16384" value="16384" onchange="Input.editorCmd('set_bounds', {MAX_X:this.value})"></div><br>
+                        <div class="attr">max_y</div><div class="val"><input id="max_y" type="number" min="-8192" max="8192" value="8192" onchange="Input.editorCmd('set_bounds', {MAX_Y:this.value})"></div>
+                    </div>
                 </div>
+                <div class="cmd_detail play" style="display: none;">
+                    <div class="line">
+                        <button id="play_btn" onclick="Input.editorCmd('play', {})">Play</button>
+                    </div>
+                </div>                
                 <div class="cmd_detail load" style="display: none;">
-                    <div class="line"><div class="attr">
-                        Map id<input type="text" onchange="Input.editorCmd('load', {mapId:this.value})">
-                    </div><div class="val"></div></div>
+                    <div class="line">
+                        <div class="attr">Map id</div><div class="val"><select id="maps" onchange="Input.editorCmd('load', {mapId:this.value})"></select></div>
+                    </div>
+                </div>
+                <div class="cmd_detail save" style="display: none;">
+                    <div class="line">
+                        <button id="save_btn" onclick="Input.editorCmd('save', {})">Save</button>
+                        <button id="saveas_btn" onclick="Input.editorCmd('save', {saveas:1})">Save as</button>
+                        <div class="save_msg"></div>
+                    </div>
                 </div>
                 <div class="cmd_detail export" style="display: none;">
                     <div class="line"><div class="attr">
@@ -657,9 +676,9 @@
                     <div class="line"><div class="attr"><button onclick="Input.editorCmd('delete_mountain')">delete</button></div><div class="val"></div></div>
                 </div>
                 <div class="cmd_detail place_mountain" style="display: none;">
-                    <div class="line"><div class="attr">
-                        Size<input type="text" onchange="Input.editorCmd('place_mountain', {mountain_scale:this.value})" value="0.9">
-                    </div><div class="val"></div></div>
+                    <div class="line">
+                        <div class="attr">Size</div><div class="val"><input type="text" onchange="Input.editorCmd('place_mountain', {mountain_scale:this.value})" size="5" value="0.9"></div>
+                    </div>
                 </div>
                 <div class="cmd_detail select_polygon" style="display: none;">
                     <div class="line"><div class="attr"><button onclick="Input.editorCmd('delete_polygon')">delete</button></div><div class="val"></div></div>
@@ -671,9 +690,64 @@
                     </div><div class="val"></div></div>
                 </div>
                 <div class="cmd_detail bases" style="display: none;">
+                    <div class="line">
+                        <div class="attr">blue x,y</div><div class="val"><input type="text" size="16" onchange="Input.editorCmd('bases', {blue_base:this.value})" value="-9670, -1470"></div><br>
+                        <div class="attr">red x,y</div><div class="val"><input type="text" size="16" onchange="Input.editorCmd('bases', {red_base:this.value})" value="8600, -940"></div>
+                    </div>
+                </div>
+                <div class="cmd_detail clone_ship" style="display: none;">
+                    <div class="line">
+                        <button onclick="Input.editorCmd('clone_ship', {})">Clone</button>
+                        <button onclick="Input.editorCmd('del_ship', {})">Delete</button>
+                    </div>
+                </div>
+                <div class="cmd_detail edit_ship" style="display: none;">
+                    <div class="line">
+                        <div class="attr">turnFactor</div><div class="val"><input id="ship_turnFactor" type="text" size="6" onchange="Input.editorCmd('edit_ship', {turnFactor:this.value})"></div><br>
+                        <div class="attr">accelFactor</div><div class="val"><input id="ship_accelFactor" type="text" size="6" onchange="Input.editorCmd('edit_ship', {accelFactor:this.value})"></div><br>
+                        <div class="attr">maxSpeed</div><div class="val"><input id="ship_maxSpeed" type="text" size="6" onchange="Input.editorCmd('edit_ship', {maxSpeed:this.value})"></div><br>
+                        <div class="attr">minSpeed</div><div class="val"><input id="ship_minSpeed" type="text" size="6" onchange="Input.editorCmd('edit_ship', {minSpeed:this.value})"></div><br>
+                        <div class="attr">brakeFactor</div><div class="val"><input id="ship_brakeFactor" type="text" size="6" onchange="Input.editorCmd('edit_ship', {brakeFactor:this.value})"></div><br>
+                        <div class="attr">boostFactor</div><div class="val"><input id="ship_boostFactor" type="text" size="6" onchange="Input.editorCmd('edit_ship', {boostFactor:this.value})"></div>
+                        <div class="spacer"></div>
+                        <div class="attr"><span style="cursor: pointer;" onclick="Input.editorCmd('edit_ship', {add_projectile:['fire','default']})">fire +</span></div><div class="val" id="ship_fire_default"></div><br>
+                        <div class="attr"><span style="cursor: pointer;" onclick="Input.editorCmd('edit_ship', {add_projectile:['fire','special']})">fire_special +</span></div><div class="val" id="ship_fire_special"></div><br>
+                        <div class="attr"><span style="cursor: pointer;" onclick="Input.editorCmd('edit_ship', {add_projectile:['infernoFire','default']})">fire_inferno +</span></div><div class="val" id="ship_infernoFire_default"></div><br>
+                        <div class="attr"><span style="cursor: pointer;" onclick="Input.editorCmd('edit_ship', {add_projectile:['infernoFire','special']})">fire_inferno_special +</span></div><div class="val" id="ship_infernoFire_special"></div><br>
+                        <div class="attr">fireDelay</div><div class="val"><input id="ship_fireDelay" type="text" size="6" onchange="Input.editorCmd('edit_ship', {fireDelay:this.value})"></div><br>
+                        <div class="attr">fireEnergy</div><div class="val"><input id="ship_fireEnergy" type="text" size="6" onchange="Input.editorCmd('edit_ship', {fireEnergy:this.value})"></div>
+                        <div class="spacer"></div>
+                        <div class="attr">special</div><div class="val"><input id="ship_special" type="text" size="6" onchange="Input.editorCmd('edit_ship', {special:this.value})"></div><br>
+                        <div class="attr">specialEnergy</div><div class="val"><input id="ship_specialEnergy" type="text" size="6" onchange="Input.editorCmd('edit_ship', {specialEnergy:this.value})"></div><br>
+                        <div class="attr">specialEnergyRegen</div><div class="val"><input id="ship_specialEnergyRegen" type="text" size="6" onchange="Input.editorCmd('edit_ship', {specialEnergyRegen:this.value})"></div><br>
+                        <div class="attr">specialDelay</div><div class="val"><input id="ship_specialDelay" type="text" size="6" onchange="Input.editorCmd('edit_ship', {specialDelay:this.value})"></div><br>
+                        <div class="spacer"></div>
+                        <div class="attr"><i>Show collisions</i></div><div class="val"><input type="checkbox" onchange="Tools.setDebugOptions({collisions:this.checked}, false)"></div><br>
+                        <div class="attr"><span style="cursor: pointer;" onclick="Input.editorCmd('edit_ship', {add_collision:true})">collision +</span></div><div class="val" id="ship_collisions"></div><br>
+                        <div class="attr">enclose_radius</div><div class="val"><input id="ship_enclose_radius" type="text" size="6" onchange="Input.editorCmd('edit_ship', {enclose_radius:this.value})"></div>
+                        <div class="spacer"></div>
+                        <div class="attr">texture</div><div class="val">
+                            <select onchange="Input.editorCmd('edit_ship', {texture:this.value})"><option></option><option value="file">Upload file</option><!--<option value="url">Load url</option>--><option value="color">Solid color</option><option value="generate">Generate</option></select><br>
+                            <input id="texture_file" type="file" onchange="Input.editorCmd('edit_ship', {texture:'file', files:this.files})" style="display: none;">
+                            <input id="texture_url" type="text" onchange="Input.editorCmd('edit_ship', {texture:'url', url:this.value})" style="display: none;">
+                            <input id="texture_color" type="color" onchange="Input.editorCmd('edit_ship', {texture:'color', color:this.value})" style="display: none;">
+                            <div id="texture_generate" style="display: none;">
+                                <input id="texture_prompt" type="text" placeholder="prompt" value="2d game jet strike fighter, top down, game asset, simple flat vector art, isolated on white background"><br>
+                                <button onclick="Input.editorCmd('edit_ship', {texture:'generate', prompt:document.getElementById('texture_prompt').value})">Generate</button>
+                            </div>
+                        </div><br>
+                        <div class="attr">baseScale</div><div class="val"><input id="ship_baseScale" type="text" size="6" onchange="Input.editorCmd('edit_ship', {baseScale:this.value})"></div><br>
+                        <div class="attr">anchor</div><div class="val"><input id="ship_anchor" type="text" size="6" onchange="Input.editorCmd('edit_ship', {anchor:this.value})"></div><br>
+                        <div class="attr"><span style="cursor: pointer;" onclick="Input.editorCmd('edit_ship', {add_thruster:true})">thruster +</span></div><div class="val" id="ship_thrusters"></div><br>
+                        <div class="attr"><span style="cursor: pointer;" onclick="Input.editorCmd('edit_ship', {add_rotor:true})">rotor +</span></div><div class="val" id="ship_rotors"></div><br>
+                        <div class="attr"><span style="cursor: pointer;" onclick="Input.editorCmd('edit_ship', {add_explosion:true})">explosion +</span></div><div class="val" id="ship_explosions">todo</div><br>
+                    </div>
+                </div>
+                <div class="cmd_detail export_ship" style="display: none;">
                     <div class="line"><div class="attr">
-                        blue x,y<input type="text" onchange="Input.editorCmd('bases', {blue_base:this.value})" value="-9670, -1470"><br>
-                        red x,y<input type="text" onchange="Input.editorCmd('bases', {red_base:this.value})" value="8600, -940">
+                        <a href="javascript:void(0);" onclick="Input.editorCmd('export_ship', {file:'ship.json'})">ship.json</a><br>
+                        <a href="javascript:void(0);" onclick="Input.editorCmd('export_ship', {file:'ship.png'})">ship.png</a><br>
+                        <a href="javascript:void(0);" onclick="Input.editorCmd('export_ship', {file:'ship_shadow.png'})">ship_shadow.png</a><br>
                     </div><div class="val"></div></div>
                 </div>
             </div>

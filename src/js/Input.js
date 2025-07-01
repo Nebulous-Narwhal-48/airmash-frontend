@@ -238,6 +238,7 @@ function onGamePadDisconnected(e) {
 
 var onWindowKeyDown = function(event) {
     if (game.state == Network.STATE.PLAYING || game.state == Network.STATE.CONNECTING) {
+        if (!UI.chatBoxOpen() && ['INPUT', 'SELECT'].includes(event.target.tagName)) return;
         var keyCode = event.which;
         if (72 != keyCode && UI.hideHelp(),
         null != c && P(keyCode))
@@ -259,6 +260,7 @@ var onWindowKeyDown = function(event) {
 
 var onWindowKeyUp = function(event) {
     if (game.state == Network.STATE.PLAYING || game.state == Network.STATE.CONNECTING) {
+        if (!UI.chatBoxOpen() && ['INPUT', 'SELECT'].includes(event.target.tagName)) return;
         var keyCode = event.which,
             bind = Input.getBind(keyCode);
         if (null == movementKeySet[bind] && isPressedByKeyCode[keyCode] && (isPressedByKeyCode[keyCode] = false),
@@ -501,7 +503,7 @@ Input.clearKeys = function(n) {
 };
 
 Input.touchCloseAll = function() {
-    game.state == Network.STATE.LOGIN ? (Games.closeDropdowns(),
+    game.state == Network.STATE.LOGIN ? (Games.closeServerMenu(), UI.closeSkinMenu(),
     UI.closeLogin()) : game.state == Network.STATE.PLAYING && (UI.closeAllPanels(),
     UI.closeTooltip())
 };

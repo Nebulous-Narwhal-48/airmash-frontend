@@ -17,6 +17,8 @@ var primarySock = null,
     f = 2e3,
     g = 2e3;
 
+let _WebSocket = window.WebSocket;
+
 Network.sendKey = function(keyCode, isPressed) {
     if (game.state == Network.STATE.PLAYING) {
         sendKeyCount++;
@@ -402,10 +404,22 @@ var handleCustomMessage = function(msg) {
             break;
         case 203:
             // change map
+            if (parsedData.setParentMapId) {
+                game.server.config.parentMapId = parsedData.setParentMapId;
+                config.manifest.parentMapId = parsedData.setParentMapId;
+                return;    
+            }
             game.server.config.playerBounds = parsedData.playerBounds;
             game.server.config.mapBounds = parsedData.mapBounds;
             game.server.config.mapId = parsedData.mapId;
-            Graphics.replaceMap();
+            game.server.config.parentMapId = parsedData.parentMapId;
+            game.server.config.mapVersion = parsedData.mapVersion;
+            Graphics.apply_bounds(game.server.config.mapBounds);
+            Graphics.load_assets({...game.server.config, ships: parsedData.ships});
+            break;
+        case 204:
+            // editor
+            Network.editorCmd(parsedData.command, parsedData.params);
             break;
     }
 };
@@ -428,6 +442,7 @@ var showSwitchGameSuggestion = function(data) {
 };
 
 var handleServerConfigUpdate = function(data) {
+    console.log(data)
     let config = {};
     try {
         config = JSON.parse(data)
@@ -439,7 +454,14 @@ var handleServerConfigUpdate = function(data) {
         game.server.config.mapBounds = {MIN_X: -16384, MIN_Y: -8192, MAX_X: 16384, MAX_Y: 8192};
     if (!config.mapId)
         game.server.config.mapId = 'vanilla';
-    Graphics.replaceMap();
+    if (!config.mapVersion)
+        game.server.config.mapVersion = [0,0,0,0,0,0,0,0];
+    
+    if (config.ships) {
+        Graphics.apply_bounds(game.server.config.mapBounds);
+        Graphics.load_assets({...game.server.config, ships: config.ships});
+    } else
+        UI.setupAircraft();//backwards compat with legacy servers
 }
 
 var shouldDiscardTimestampedMessage = function(msg) {
@@ -473,15 +495,15 @@ Network.reconnect = function() {
 };
 
 Network.setup = function() {
-    if (DEVELOPMENT && (game.customServerUrl||game.playHost.includes('127.0.0.1'))) {
-        currentSockUrl = game.customServerUrl || ("ws://" + game.playHost + "/" + game.playPath);
-    } else {
-        currentSockUrl = "wss://" + game.playHost + "/" + game.playPath;
-    }
-    if (config.debug.mock_server)
-        mock_server();
+    // if (DEVELOPMENT && (game.customServerUrl||game.playHost.includes('127.0.0.1'))) {
+    //     currentSockUrl = game.customServerUrl || ("ws://" + game.playHost + "/" + game.playPath);
+    // } else {
+    //     currentSockUrl = "wss://" + game.playHost + "/" + game.playPath;
+    // }
+    currentSockUrl = game.serverUrl;
+    wrap_websocket();
     backupSock && backupSockIsConnected && backupSock.close(),
-    (primarySock = new WebSocket(currentSockUrl)).binaryType = "arraybuffer",
+    (primarySock = new _WebSocket(currentSockUrl)).binaryType = "arraybuffer",
     primarySock.onopen = function() {
         let session = {};
         if (config.auth.tokens && config.auth.tokens.game) {
@@ -539,7 +561,9 @@ Network.setup = function() {
 };
 
 var initBackupSock = function() {
-    (backupSock = new WebSocket(currentSockUrl)).binaryType = "arraybuffer";
+    if (!currentSockUrl?.startsWith('ws'))
+        return;
+    (backupSock = new _WebSocket(currentSockUrl)).binaryType = "arraybuffer";
     backupSock.onopen = function() {
         sendMessageDict({
             c: ClientPacket.BACKUP,
@@ -640,7 +664,10 @@ var encodeNetworkMessage = function(msg, t) {
             break;
         case FieldType.boolean:
             dataView.setUint8(outputOffset, false === msg[schema[n][0]] ? 0 : 1),
-            outputOffset += 1
+            outputOffset += 1;
+            break;
+        default:
+            console.error('encodeNetworkMessage', schema[n])
         }
     return buf
 };
@@ -839,6 +866,7 @@ var decodeMessageToDict = function(encoded, t) {
                 inputPos += 1;
                 break;
             default:
+                console.error('decodeMessageToDict', schema[fieldIdx]);
                 return null
             }
         }
@@ -1051,101 +1079,421 @@ function log_packet(msg) {
     console.log(ServerPacketInverse[msg.c], msg);
 };
 
-function mock_server() {
-    sendMessageDict = function(msg, useBackupConn) {
-        if(useBackupConn) {
-            backupSock.send(msg);
-        } else {
-            primarySock.send(msg);
-        }
-    };
-    decodeMessageToDict = function(msg) { return msg; };
 
-    let i = 0;
+Network.peer_id = crypto.randomUUID();
+let local_server, peer;
+let id_count = 0;
+let connections = [];
 
-    window.WebSocket = class {
-        constructor(url) {
-            console.log('WebSocket', i, url)
-            if (i === 1)
-                this.backup = true;
-            else if (i > 1)
-                i = 0;
-            i++;
-
-            if (url.includes('ffa'))
-                this.type = window.GameType.FFA;
-            else if (url.includes('ctf'))
-                this.type = window.GameType.CTF;
-            else if (url.includes('btr'))
-                this.type = window.GameType.BTR;
-            else
-                throw "todo";
-        }
-    
-        set onopen(fn) {
-            setTimeout(fn, 100);
-        }
-    
-        set onclose(fn) {
-            //setTimeout(fn, 2000)
+function start_server(callback) {
+    const worker = new Worker((location.href.includes('localhost') ? 'js':'assets') + '/server.js?'+new Date().getTime(), { type: "module" });
+    const server = new Proxy(worker, {
+        get(target, method) {
+            const ret = Reflect.get(...arguments);
+            if (typeof ret === 'function' && method != 'constructor') {
+                return function (...args) { return ret.apply(worker, args); };
+            } else if (!ret) {
+                return (...args)=> {worker.postMessage({id: args[0].id, method, args:args.slice(1)})};
+            }
+            return ret;
         } 
-    
-        set onerror(fn) {
+    });
+    server.addEventListener('message', ({data:{id, data}}) => {
+        callback(id, data);
+    });
+    server.postMessage({init:true, config, KEYLOOKUP:Network.KEYLOOKUP, KeyCodes, ServerPacket, mapBounds:game.server.config?.mapBounds});
+    window._server = server;
+    return server;
+}
 
+function close_server() {
+    console.log('closing local server');
+    local_server?.terminate();
+    local_server = null;
+}
+
+async function start_peer() {
+    if (!window.Peer) {
+        console.log('loading peerjs.js');
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'; 
+        script.async = true;
+        document.head.appendChild(script);
+        await new Promise((resolve,reject)=>{
+            script.onload = resolve;
+        });
+    }
+
+    return new Promise((resolve, reject)=>{
+        const peer_id = Network.peer_id; //crypto.randomUUID();
+        const peer = new window.Peer(peer_id, {debug:2});
+        peer.on('open', function(id) {
+            console.log('peer open ' + id);
+            resolve(peer);
+        });
+        peer.on('error', function(err){
+            console.log('peer on error', err);
+        });
+        // 'Emitted when the peer is disconnected from the signaling server'
+        // 'When a peer is disconnected, its existing connections will stay alive, but the peer cannot accept or create any new connections.'
+        peer.on('disconnected', function(){
+            console.log('peer on disconnected');
+            peer.reconnect();
+        });
+    });
+}
+
+function close_peer() {
+    console.log('closing peer');
+    peer?.destroy();
+    peer = null;
+    Network.server_id = null;
+    connections = [];
+}
+
+
+// manage these 3 scenarios
+// A) normal ws connection (passthrough)
+// B) connection using peerjs (client)
+// C) create and connect to local server (web worker) + start peerjs server and forward client requests to local server
+function wrap_websocket() {
+
+    function dispatch(conn, msg) {
+        if (msg.c !== 5)
+            console.log(`send${conn.backup?'(backup)':''}`, msg);
+
+        if (false) {
+
+        //ACK
+        } else if (msg.c === ClientPacket.ACK) {
+            local_server.ack(conn);
+
+        //ACK
+        } else if (msg.c === ClientPacket.PONG) {
+            local_server.pong(conn, msg);
+
+        //LOGIN
+        } else if (msg.c === ClientPacket.LOGIN) {
+            local_server.login(conn, msg);
+
+            // if (game.editorMode) {
+            //     setTimeout(()=>{
+            //         // show flags
+            //         conn.callback({data:{c:ServerPacket.GAME_FLAG, type:1, flag:1, posX:config.objects.bases[1][0], posY:config.objects.bases[1][1]}});
+            //         conn.callback({data:{c:ServerPacket.GAME_FLAG, type:1, flag:2, posX:config.objects.bases[2][0], posY:config.objects.bases[2][1]}});
+            //     }, 500);
+            // }
+
+        //KEY
+        } else if (msg.c === ClientPacket.KEY) {
+            local_server.key(conn, msg);
+
+        //COMMAND: respawn
+        } else if (msg.c === ClientPacket.COMMAND && msg.com == 'respawn') {
+            local_server.respawn(conn, parseInt(msg.data));
+
+        } else if (msg.c === ClientPacket.COMMAND) {
+            local_server.command(conn, msg.com, msg.data);
+
+        } else if (msg.c === ClientPacket.CHAT) {
+            // local_server.chat(conn, msg.text);
+            const text = msg.text;
+            for (const connection of connections) {
+                if (!connection) continue;
+                connection.callback({data:{
+                    c: ServerPacket.CHAT_PUBLIC,
+                    id: conn.player_id,
+                    text,
+                }});
+            }
         }
-    
-        set onmessage(fn) {
-            this.callback = fn;
-        }
-    
-        send(msg) {
-            if (msg.c !== 5)
-                console.log(`send${this.backup?'(backup)':''}`, msg);
+    }
+ 
+    _WebSocket = class {
+        constructor(url) {
+            this.id = id_count++;
+            console.log('WebSocket', url, this.id);
+            connections.push(this);
 
-            if (false) {
+            if (!url) {
+                // scenario C
 
-            //ACK (ignore)
-            } else if (msg.c === 5) {
+                setTimeout(()=>this.onopen_callback(), 100);
 
-            //LOGIN
-            } else if (msg.c === 0) {
-                let server_msg = {
-                    c: ServerPacket.LOGIN,
-                    success: true,
-                    id: 1033,
-                    team: 1033,
-                    clock: performance.now()*100,//1664840,
-                    token: '49b2d1793d1d2e68',
-                    type: this.type,
-                    room: 'ab-ffa',
-                    players: [
-                      {
-                        id: 1033,
-                        status: 0,
-                        level: 0,
-                        name: 'a',
-                        type: 1,
-                        team: 1033,
-                        posX: 2193,
-                        posY: -1814,
-                        rot: 0,
-                        flag: 11,
-                        upgrades: 8 //{powerups: {shield: true, rampage: false}, speedupgrade: 0} (Tools.decodeUpgrades)
-                      }
-                    ],
-                    serverConfiguration: '{"sf":5500,"botsNamePrefix":""}',
-                    bots: [ /*{ id: 1033 }*/ ]
-                  };
-                this.callback({data:server_msg});
+                if (local_server)
+                    return;
 
-                // show flags
-                this.callback({data:{c:ServerPacket.GAME_FLAG, type:1, flag:1, posX:config.objects.bases[1][0], posY:config.objects.bases[1][1]}});
-                this.callback({data:{c:ServerPacket.GAME_FLAG, type:1, flag:2, posX:config.objects.bases[2][0], posY:config.objects.bases[2][1]}});
+                function beacon({players, type}) {
+                    fetch(`https://server-manager.airmash.workers.dev/add_peer`, {
+                        method: "POST",
+                        headers: {
+                          "content-type": "application/json"
+                        },
+                        body: JSON.stringify({peer_id: peer.id, players, type, name: `${game.myName}'s Server`, region_name: Intl.DateTimeFormat().resolvedOptions().timeZone?.replace(/\/.*/, '').replace('America','US')})
+                    });
+                }
+                
+                local_server = start_server((id, data)=>{
+                    if (id === -1 && peer) {
+                        const {players, type} = data;
+                        beacon({players, type});
+                    } else {
+                        const conn = connections[id];
+                        if (conn) {
+                            if (!data) {
+                                // server closed connection
+                                conn.onclose_callback();
+                            } else {
+                                if (data.c === ServerPacket.LOGIN) {
+                                    conn.player_id = data.id;
+                                }
+                                conn.callback({data});
+                            }
+                        } else
+                            console.log('server msg ignored (client disconnected?)', id);
+                    }
+                });
+
+                // todo: peer serialization raw..
+                // const _encodeNetworkMessage = encodeNetworkMessage;
+                // const _decodeMessageToDict = decodeMessageToDict;
+                encodeNetworkMessage = function(msg) { return msg; }; 
+                decodeMessageToDict = function(msg) { return msg; };
+                const _encodeNetworkMessage = encodeNetworkMessage;
+                const _decodeMessageToDict = decodeMessageToDict;
+
+                // start_peer (server)
+                (async ()=>{
+                    if (!peer)
+                        peer = await start_peer();
+                    Network.server_id = peer.id;
+                    beacon({players:0, type:6});
+                    peer.on('connection', function(conn) {
+                        console.log('peer on connection');
+                        if (!local_server) {
+                            console.error('local_server null');
+                            return;
+                        }
+
+                        conn.callback = ({data}) => {
+                            const buffer = _encodeNetworkMessage(data);
+                            conn.send(buffer);
+                        };
+                        conn.onclose_callback = () => {
+                            conn.close();
+                        };
+
+                        conn.on('data', (data)=>{
+                            //console.log("conn data(1)");
+                            const msg = _decodeMessageToDict(data);
+                            dispatch(conn, msg);
+                        });
+                        conn.on("open", () => {
+                            console.log("conn open(1)");
+                            conn.id = id_count++;
+                            connections.push(conn);
+                        });
+                        conn.on('error', (...args)=>{
+                            console.log("conn error(1)", ...args);
+                        });
+                        conn.on("close", () => {
+                            console.log("conn close(1)");
+                            local_server.close(conn);
+                            connections[conn.id] = undefined;
+                        });
+                    });
+                })();
+
+            } else if (!url.startsWith('ws')) {
+                // scenario B
+
+                // server shutdown
+                close_server();
+
+                // todo: peer serialization raw..
+                encodeNetworkMessage = function(msg) { return msg; }; 
+                decodeMessageToDict = function(msg) { return msg; };
+
+                // start_peer (client) and connect to peer server
+                (async ()=>{
+                    if (!peer)
+                        peer = await start_peer();
+                    peer.on('connection', function(conn) {});
+                    const conn = peer.connect(url);
+                    conn.on('data', (data)=>{
+                        //console.log("conn data", data);
+                        this.callback({data});
+                    });
+                    conn.on('open', ()=>{
+                        console.log("conn open");
+                        Network.server_id = url;
+                        conn.id = id_count++;
+                        this.conn = conn;
+                        this.onopen_callback();
+                    });
+                    conn.on('error', (...args)=>{
+                        console.log("conn error", ...args);
+                        this.onerror_callback();
+                    });
+                    conn.on('close', ()=>{
+                        console.log("conn close");
+                        this.onclose_callback();
+                    });                    
+                })();
+
+            } else {
+                // scenario A
+                this.ws = new WebSocket(url);
+                this.ws.binaryType = "arraybuffer";
+
+                // peer and server shutdown
+                close_peer();
+                close_server();
             }
         }
 
-        close() {
+        set onopen(fn) {
+            if (this.ws) //scenario A
+                this.ws.onopen = fn;
+            else {//scenario B-C
+                this.onopen_callback = fn;
+            }
+        }
+    
+        set onclose(fn) {
+            if (this.ws)
+                this.ws.onclose = fn;
+            else
+                this.onclose_callback = fn;
+        } 
+    
+        set onerror(fn) {
+            if (this.ws)
+                this.ws.onerror = fn;
+            else
+                this.onerror_callback = fn;
+        }
+    
+        set onmessage(fn) {
+            if (this.ws) //scenario A
+                this.ws.onmessage = fn;
+            else //scenario B-C
+                this.callback = fn;
+        }
 
+        close() {
+            if (this.ws)
+                this.ws.close();
+        }
+
+        send(msg) {
+            if (this.ws) {
+                // scenario A
+                this.ws.send(msg);
+            } else if (this.conn) {
+                // scenario B
+                this.conn.send(msg);
+            } else {
+                // scenario C
+                dispatch(this, msg);
+            }
         }
     };
 }
+
+function connect(client, url) {
+    const is_backup = !!client.socket;
+    const socket = new _WebSocket(url);
+    socket.binaryType = "arraybuffer";
+    if (!is_backup) {
+        client.socket = socket;
+    }
+    let shouldSendNextAckOnBackupSock = false;
+    let ack_timer;
+
+    const _send = socket.send;
+    socket.send = function(obj) {
+        obj = encodeNetworkMessage(obj);
+        _send.call(socket, obj);
+    };
+
+    socket.onopen = function() {
+        if (is_backup) {
+            socket.send({c:ClientPacket.BACKUP, token: client.token});
+
+            ack_timer = setInterval(()=>{
+                (shouldSendNextAckOnBackupSock ? socket : client.socket).send({c: ClientPacket.ACK});;
+                shouldSendNextAckOnBackupSock = !shouldSendNextAckOnBackupSock;
+            }, 50);
+        } else {
+            socket.send({
+                c: ClientPacket.LOGIN,
+                protocol: 5,
+                name: client.name,
+                session: 'none',
+                horizonX: 1200,
+                horizonY: 650,
+                flag: 'US'
+            });
+        }
+    };
+
+    socket.onclose = function() {
+        //console.log(is_backup ? 'BACKUP' : '', 'socket close');
+        clearInterval(ack_timer);
+        if (!is_backup)
+            client.socket = null;
+        //client.destroy();
+    };
+
+    socket.onerror = function() {
+        //console.log(is_backup ? 'BACKUP' : '', 'socket error');
+    };
+
+    socket.onmessage = function(e) {
+        const msg = decodeMessageToDict(e.data);
+
+        if (msg.c == ServerPacket.PING) {
+			socket.send({ c: ClientPacket.PONG, num: msg.num });
+		} else if (msg.c == ServerPacket.LOGIN) { 
+			client.token = msg.token;
+			// this.state.my_id = obj.id;
+			// this.state.players = obj.players;
+            if (url.startsWith('ws')) {
+			    connect(client, url);
+            } else {
+                ack_timer = setInterval(()=>{
+                    socket.send({c: ClientPacket.ACK});
+                }, 100);
+            }
+		} else if (msg.c == ServerPacket.PLAYER_NEW) {
+		} else if (msg.c == ServerPacket.PLAYER_LEAVE) {
+		} else if (msg.c == ServerPacket.CHAT_PUBLIC) {
+		}
+    };
+
+    return client;
+}
+
+class Client {
+    sendKeyCount = 0
+
+    constructor({name}) {
+        this.name = name;
+    }
+
+    destroy() {
+
+    }
+
+    // state: true=starts firing, false=stop
+    fire(state) {
+        this.socket.send({c:ClientPacket.KEY, seq:++this.sendKeyCount, key:KeyCodes.FIRE, state});
+    }
+}
+
+window.test_connect = (url)=>{
+    const client = new Client({name:'x'});
+    window.client = client;
+    connect(client, url);
+};

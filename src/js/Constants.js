@@ -269,6 +269,7 @@ window.GameType = {
     CTF: 2,
     BTR: 3,
     CONQUEST: 5,
+    EDITOR: 6,
 };
 
 // airmash-protocol-rs/blob/master/src/enums/plane_type.rs

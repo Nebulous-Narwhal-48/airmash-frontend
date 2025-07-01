@@ -1,31 +1,16 @@
+import { prepEditor, wipeEditor } from './editor.js';
 import Vector from './Vector.js';
 
-// Default games data is fetched on build from airmash-refugees/airmash-games repo
-import { defaultGamesData } from './GamesData.js'; 
-
-// Visibility of the drop-down menus
-let playRegionMenuVisible = false;
-let playTypeMenuVisible = false;
-let gamesSelectorVisible = false;
-
 const BLUE = 1, RED = 2;
-
-const gameTypes = [
-    '',
-    'ffa',
-    'ctf',
-    'br',
-    'conquest',
-    'dev'
-];
 
 const gameTypeNames = [
     '',
     'Free For All',
     'Capture The Flag',
     'Battle Royale',
+    'Development',
     'Conquest',
-    'Development'
+    'Editor',
 ];
 
 const gameTypeDescriptions = [
@@ -36,25 +21,7 @@ const gameTypeDescriptions = [
     'Game environments for development and testing.'
 ];
 
-let pingHosts = {};
-let pingsAwaitingResponse = 0;
-let performPingInterval = null;
-let closestRegionIndex = null;
-
-let gameHasStarted = false;
-
-let inviteCopiedTimeout = null;
-
-let gamesData = defaultGamesData;
-if (window.DEVELOPMENT) {
-    gamesData.splice(0, 0, {
-        name: 'dev',
-        id: 'dev',
-        games: gameTypes.map((type, i) => ({type:i, id:`${type}1`, name:`${gameTypeNames[i]} #1`, nameShort:`${type.toUpperCase()} #1`, host:'127.0.0.1:3501', path:`?${type}`})),
-    });
-}
-let isGamesDataEmpty = false;
-
+let currentServer = null; //used only for UI purposes
 let ctf = {};
 let conquest = {};
 const blue_color = 0x4076E2, red_color = 0xEA4242;
@@ -75,25 +42,18 @@ let loginIdentityProvider = 0;
 let loginNonce = null;
 
 Games.setup = function() {
-    // Set up all the click event handlers
-    $('#playregion').on('click', function(event) {
-        Games.updateRegion(true, event)
-    });
-    $('#playtype').on('click', function(event) {
-        Games.updateType(true, event)
-    });
     $('#open-menu').on('click', function(event) {
-        Games.popGames(),
-        event.stopPropagation()
+        Games.openServerMenu();
+        event.stopPropagation();
     });
-    $('#gameselector').on('click', function(event) {
-        event.stopPropagation()
+    $('#playserver').on('click', function(event) {
+        Games.openServerMenu(true);
+        event.stopPropagation();
     });
     $('#skinbutton').on('click', function(event) {
         UI.openSkinMenu();
         event.stopPropagation();
     });
-    $('#invite-copy').on('click', Games.copyInviteLink);
     $('#loginbutton').on('click', function(event) {
         UI.openLogin(),
         event.stopPropagation()
@@ -130,19 +90,16 @@ Games.setup = function() {
     // Poll settings every second to see if any change needs to be sent to backend service
     setInterval(Tools.syncRemoteSettings, 1000);
 
-    Games.updateRegion(false);
-    Games.updateType(false);
-    if (!config.debug.disable_region_ping)
-        pingGameServersForRegions();
-
-    refreshGamesData(function() {
-        updatePlayersOnline();
-        if (!isGamesDataEmpty) {
-            selectGameFromUrlHash();
-            Games.updateRegion(false);
-            Games.updateType(false);
-        }
+    Games.selectServer(null, {
+        "url": "wss://ffa.airmash.xyz/ffa",
+        "region_name": "US",
+        "name": "Free For All #1",
+        "nameShort": "FFA #1",
     }, true);
+
+    refreshGamesData(true).then((servers) => {
+        updatePlayersOnline(servers);
+    });
 };
 
 var receiveLoginMessage = function(msg) {
@@ -270,14 +227,18 @@ Games.logout = function() {
     window.location = window.location;
 };
 
-var refreshGamesData = function(callback, fromMainPage) {
-    let url = `https://${game.backendHost}/games`;
-    if (fromMainPage) {
-        url += '?main=1';
-    }
+async function refreshGamesData(fromMainPage) {
+    const url = `https://server-manager.airmash.workers.dev/servers?${Date.now()}`;
+    const legacy_url = `https://${game.backendHost}/games${'?'+Date.now()}${fromMainPage?'&main=1':''}`;
 
-    fetch(url+'?'+new Date().getTime()).then(response => response.json()).then(response => {
-        gamesData = JSON.parse(response.data);
+    // fetch servers
+    const servers = await fetch(url).then(res=>res.json());
+    servers.forEach(x=>x.type=gameTypeNames[x.type]);
+
+    // fetch legacy servers
+    {
+        const response = await fetch(legacy_url).then(response => response.json());
+        const gamesData = JSON.parse(response.data);
 
         // Set flag from country code in response
         if (game.myFlag == 'xx') {
@@ -285,451 +246,133 @@ var refreshGamesData = function(callback, fromMainPage) {
         }
 
         // On protocol mismatch, reload the page
-        if (fromMainPage && game.protocol != response.protocol) {
-            if (window.location.hash !== '#reload') {
-                Tools.ajaxPost(`https://${game.backendHost}/clienterror`, { type: 'protocol' }, function() {
-                    UI.showMessage('alert', '<span class="mainerror">Protocol update<br>Your client is being updated to the new version</span>', 30000);
-                    setTimeout(function() { window.location = '/?' + Tools.randomID(10) + '#reload' }, 5000);
+        // if (fromMainPage && game.protocol != response.protocol) {
+        //     if (window.location.hash !== '#reload') {
+        //         Tools.ajaxPost(`https://${game.backendHost}/clienterror`, { type: 'protocol' }, function() {
+        //             UI.showMessage('alert', '<span class="mainerror">Protocol update<br>Your client is being updated to the new version</span>', 30000);
+        //             setTimeout(function() { window.location = '/?' + Tools.randomID(10) + '#reload' }, 5000);
+        //         });
+        //     }
+        //     else {
+        //         Tools.ajaxPost(`https://${game.backendHost}/clienterror`, { type: 'protocolretry' });
+        //     }
+        // }
+
+        for (const {id:region_id, name:region_name, games} of gamesData) {
+            for (const {id, type, name, nameShort, host, path, players, bots} of games) {
+                servers.push({
+                    url: `wss://${host}/${path}`,
+                    region_name,
+                    id,
+                    name,
+                    nameShort,
+                    type: gameTypeNames[type],
+                    players:players||0,
+                    bots:bots||0
                 });
-            }
-            else {
-                Tools.ajaxPost(`https://${game.backendHost}/clienterror`, { type: 'protocolretry' });
-            }
-        }
 
-        if (window.DEVELOPMENT) {
-            gamesData.splice(0, 0, {
-                name: 'dev',
-                id: 'dev',
-                games: gameTypes.map((type, i) => ({type:i, id:`${type}1`, name:`${gameTypeNames[i]} #1`, nameShort:`${type.toUpperCase()} #1`, host:'127.0.0.1:3501', path:`?${type}`})),
-            });
-        }
-
-
-        // Success callback
-        callback();
-
-    }).catch(() => {
-    });
-};
-Games.refreshGamesData = refreshGamesData;
-
-var updatePlayersOnline = function() {
-    let playerCount = 0;
-    let gameCount = 0;
-    for (let region of gamesData) {
-        for (let regionGame of region.games) {
-            if (regionGame.players) {
-                playerCount += regionGame.players;
-            }
-            if (regionGame.bots) {
-                playerCount -= regionGame.bots;
-            }
-            gameCount++;
-        }
-    }
-    if (gameCount === 0) {
-        isGamesDataEmpty = true;
-        UI.showMessage('alert', '<span class="mainerror">We are currently performing server maintenance<br>Please try again in a few minutes</span>', 30000);
-    }
-    else {
-        let html = '<div class="item smallerpad">' + playerCount + '</div>player' + (playerCount > 1 ? 's' : '') + ' online';
-        $('#gameinfo').html(html);
-    }
-};
-
-var getRegionByName = function(regionName) {
-    if (regionName === 'closest') {
-        return { name: 'Closest' };
-    }
-
-    for (let region of gamesData) {
-        if (region.id === regionName) {
-            return region;
-        }
-    }
-
-    if (game.playRegion = 'closest') {
-        return { name: 'Closest' };
-    }
-};
-
-var getGameByRegionAndRoom = function(regionName, gameName) {
-    let region = getRegionByName(regionName);
-    if (!region || !region.games) {
-        // Return null if the specified region has no games
-        return null;
-    }
-
-    // Check if game name is a game with this id in this region
-    for (let regionGame of region.games) {
-        if (regionGame.id === gameName) {
-            return regionGame;
-        }
-    }
-
-    // Check if game name is a game type
-    let gameType = gameTypes.indexOf(gameName);
-    if (gameType != -1) {
-        for (let regionGame of region.games) {
-            if (regionGame.type == gameType) {
-                return { name: gameTypeNames[gameType] };
+                //ping
+                // const idx = servers.length;
+                // navigator.locks.request("ping", async (lock) => {
+                //     const pingStartTimestamp = performance.now();
+                //     await fetch(`https://${host}/ping?${pingStartTimestamp}`, {mode:'no-cors'});
+                //     const ping = performance.now() - pingStartTimestamp;
+                //     (document.querySelector(`#servermenu .item:nth-child(${idx}) .ping`)||{}).textContent = ping;
+                // });
             }
         }
     }
 
-    return null;
-};
-
-var selectGameFromUrlHash = function() {
-    let hash = window.location.hash;
-    if (hash !== '#reload' && hash != null && !(hash.length < 4 || hash.length > 20)) {
-        // Remove leading '#' from URL hash
-        hash = hash.substr(1);
-
-        // Format of URL hash is 'region-room', split on '-'
-        let regionRoom = hash.split('-');
-        if (regionRoom.length == 2) {
-            let [ region, room ] = regionRoom;
-
-            // Look up this region and room in games data, and clear URL hash
-            if (getGameByRegionAndRoom(region, room) != null) {
-                game.playRegion = region;
-                game.playRoom = room;
-                game.playInvited = true;
-                history.replaceState(null, null, '/');
-            }
-        }
-    }
-};
-
-Games.selectRegion = function(clickEvent, region) {
-    clickEvent.stopPropagation();
-    Sound.UIClick();
-    game.playRegion = region;
-    Games.updateRegion(false);
-    Games.updateType();
-};
-
-Games.selectGame = function(clickEvent, room) {
-    clickEvent.stopPropagation();
-    Sound.UIClick();
-    game.playRoom = room;
-    Games.updateType(false);
-};
-
-Games.closeDropdowns = function() {
-    if (playTypeMenuVisible) {
-        Games.updateType(false);
-    }
-    if (playRegionMenuVisible) {
-        Games.updateRegion(false);
-    }
-};
-
-Games.updateRegion = function(menuVisible, clickEvent) {
-    let html = '';
-    let css;
-
-    if (!isGamesDataEmpty) {
-        if (clickEvent) {
-            clickEvent.stopPropagation();
-            if (!playRegionMenuVisible) {
-                Sound.UIClick();
-            }
-        }
-
-        if (menuVisible) {
-            UI.closeLogin();
-        }
-
-        if (menuVisible == null) {
-            menuVisible = playRegionMenuVisible;
-        }
-
-        if (menuVisible) {
-            if (playTypeMenuVisible) {
-                Games.updateType(false);
-            }
-
-            // Header row
-            html += '<div class="item">';
-            html += '<div class="region header">REGION</div>';
-            html += '<div class="players header">PLAYERS</div>';
-            html += '<div class="ping header">PING</div>';
-            html += '<div class="clear"></div>';
-            html += '</div>';
-
-            // Closest region
-            let autoregion = '';
-            if (closestRegionIndex != null) {
-                autoregion = '<span class="autoregion">(' + gamesData[closestRegionIndex].name + ')</span>';
-            }
-            html += '<div class="item selectable' + (game.playRegion === 'closest' ? ' sel' : '') + '" onclick="Games.selectRegion(event, &quot;closest&quot;)">';
-            html += '<div class="region chooser">Closest' + autoregion + '</div>'
-            html += '<div class="clear"></div>';
-            html += '</div>';
-
-            // Named regions
-            for (let region of gamesData) {
-
-                // Region total players 
-                let hasPlayers = false;
-                let playerCount = 0;
-                for (let regionGame of region.games) {
-                    if (regionGame.players) {
-                        playerCount += regionGame.players;
-                        hasPlayers = true;
-                    }
-                    if (regionGame.bots) {
-                        playerCount -= regionGame.bots;
-                    }
-                }
-                if (!hasPlayers) {
-                    playerCount = '<span class="playersunknown">?</span>';
-                }
-
-                // Region ping 
-                let ping = '&nbsp;';
-                if (region.ping) {
-                    ping = Math.round(region.ping) + '<span class="ms">ms</span>';
-                }
-                
-                html += '<div class="item selectable' + (region.id === game.playRegion ? ' sel' : '') + '" onclick="Games.selectRegion(event, &quot;' + region.id + '&quot;)">';
-                html += '<div class="region chooser">' + region.name + '</div>';
-                html += '<div class="players number">' + playerCount + '</div>';
-                html += '<div class="ping chooser nopadding">' + ping + '</div>';
-                html += '<div class="clear"></div>';
-                html += '</div>';
-            }
-
-            // Bottom padding
-            html += '<div class="item"></div>';
-
-            css = {
-                width: '240px',
-                height: 'auto',
-                'z-index': '2'
-            };
-
-            $('#playregion').removeClass('hoverable');
-
-        } else {
-            // Dropdown menu not visible (closed)
-            html += '<div class="arrowdown"></div>';
-            html += '<div class="playtop">REGION</div>';
-            html += '<div class="playbottom">' + getRegionByName(game.playRegion).name + '</div>';
-            css = {
-                width: '130px',
-                height: '40px',
-                'z-index': 'auto'
-            };
-            $('#playregion').addClass('hoverable');
-        }
-
-        $('#playregion').html(html);
-        $('#playregion').css(css);
-        playRegionMenuVisible = menuVisible;
-    }
-};
-
-var getSelectedOrClosestRegionId = function() {
-    let regionId = game.playRegion;
-
-    // If no region has been selected, get closest if known
-    if (regionId === 'closest') {
-        if (closestRegionIndex == null) {
-            return null;
-        }
-        regionId = gamesData[closestRegionIndex].id;
+    if (window.DEVELOPMENT) {
+        servers.push({
+            url: `ws://127.0.0.1:3501?ffa`,
+            region_name: 'dev',
+            name: 'dev',
+            nameShort: 'dev',
+            type: gameTypeNames[1],
+            players:0,
+            bots:0
+        });
     }
 
-    return regionId;
+    console.log('servers', servers);
+    return servers;
 };
 
+function updatePlayersOnline(servers) {
+    const playerCount = servers.reduce((acc,{players,bots})=>acc+players-(bots||0), 0);
+    let html = '<div class="item smallerpad">' + playerCount + '</div>player' + (playerCount > 1 ? 's' : '') + ' online';
+    document.querySelector('#gameinfo').innerHTML = html;
+};
+
+// info tooltip
+//                      html += '<span class="infocontainer">&nbsp;<div class="infoicon">' + getGameTypeDescriptionHtml(type) + '</div></span>';
 var getGameTypeDescriptionHtml = function(gameType) {
     return `<div class="infott">${gameTypeDescriptions[gameType]}<div class="arrow"></div></div>`;
 };
 
-Games.updateType = function(menuVisible, clickEvent) {
+// update login menu
+function updateServer({name, nameShort, region_name} = {}) {
     let html = '';
-    let css = null;
+    html += '<div class="playtop" style="left:12px">SERVER</div>';
+    if (nameShort)
+        html += `<div class="playbottom" style="left:12px">${UI.escapeHTML(name)}&nbsp;&nbsp;<span style="color: #c8c8c8">•&nbsp;&nbsp;${UI.escapeHTML(region_name)}</span></div>`;
+    document.querySelector('#playserver').innerHTML = html;
+}
 
-    if (!isGamesDataEmpty) {
-        if (clickEvent) {
-            clickEvent.stopPropagation();
-            if (!playTypeMenuVisible) {
-                Sound.UIClick();
-            }
+Games.openServerMenu = async function(fromMainPage) {
+    UI.showPanel("#servermenu");
+
+    const servers = await refreshGamesData(true);
+
+    let html = '';
+    if (servers.length > 0) {
+        html += `<div class="item header">
+            <div class="">NAME</div>
+            <div class="">REGION</div>
+            <div class="">TYPE</div>
+            <div class="">PLAYERS</div>
+            <!--<div class="">PING</div>-->
+            </div>`;       
+        for (const {name, type, nameShort, region_name, players, bots, url} of servers) {
+            html += `<div class="item selectable" onclick="Games.selectServer(event, {url:'${UI.escapeString(url)}', nameShort:'${UI.escapeString(nameShort)}', name:'${UI.escapeString(name)}', region_name:'${UI.escapeString(region_name)}'}, ${fromMainPage?'true':'false'})">
+                <div class="">${UI.escapeHTML(name)}</div>
+                <div class="">${UI.escapeHTML(region_name)}</div>
+                <div class="">${UI.escapeHTML(type)}</div>
+                <div class="">${UI.escapeHTML(players)}</div>
+                <!--<div class="ping"></div>-->
+            </div>`;
         }
-
-        if (menuVisible) {
-            UI.closeLogin();
-        }
-
-        if (menuVisible == null) {
-            menuVisible = playTypeMenuVisible;
-        }
-        
-        if (menuVisible) {
-            if (playRegionMenuVisible) { 
-                Games.updateRegion(false);
-            }
-
-            // Header row
-            html += '<div class="item">';
-            html += '<div class="gametype header">GAME</div>';
-            html += '<div class="players header">PLAYERS</div>';
-            html += '<div class="bots header">BOTS</div>';
-            html += '<div class="clear"></div>';
-            html += '</div>';
-
-            // Do not display if no region selected (including autoselect of closest)
-            let selectedRegionId = getSelectedOrClosestRegionId();
-            if (selectedRegionId == null) {
-                return;
-            }
-
-            // Default to first game type (FFA) if none selected
-            if (getGameByRegionAndRoom(selectedRegionId, game.playRoom) == null) {
-                game.playRoom = gameTypes[1];
-            };
-
-            let roomsByType = [[],[],[],[],[],[],[],[],[]];
-            
-            let regionRooms = getRegionByName(selectedRegionId).games;
-            for (let room of regionRooms) {
-                roomsByType[room.type].push(room);
-            }
-
-            for (let type = 1; type < gameTypes.length; type++) {
-                if (roomsByType[type].length > 0) {
-                    html += '<div class="item selectable' + (gameTypes[type] === game.playRoom ? ' sel' : '') + '" onclick="Games.selectGame(event, &quot;' + gameTypes[type] + '&quot;)">';
-                    html += '<div class="gametype chooser">' + gameTypeNames[type];
-                    html += '<span class="infocontainer">&nbsp;<div class="infoicon">' + getGameTypeDescriptionHtml(type) + '</div></span>';
-                    html += '</div>';
-                    html += '<div class="clear"></div>';
-                    html += '</div>';
-
-                    for (let room of roomsByType[type]) {
-                        html += '<div class="item selectable' + (room.id === game.playRoom ? ' sel' : '') + '" onclick="Games.selectGame(event, &quot;' + room.id + '&quot;)">';
-                        html += '<div class="gametype chooser">' + room.nameShort + '</div>';
-                        html += '<div class="players number">' + (room.players != null ? (room.players - (room.bots || 0)) : '<span class="playersunknown">?</span>') + '</div>';
-                        html += '<div class="bots number">' + (room.bots ? `+${room.bots}` : '') + '</div>';
-                        html += '<div class="clear"></div>';
-                        html += '</div>';
-                    }
-                }
-            }
-
-            html += '<div class="item"></div>';
-
-            css = {
-                width: '280px',
-                height: 'auto',
-                'z-index': '2'
-            };
-
-            $('#playtype').removeClass('hoverable');
-        } else {
-            html += '<div class="arrowdown"></div>',
-            html += '<div class="playtop">GAME</div>';
-
-            // Do not display if no region selected (including autoselect of closest)
-            let selectedRegionId = getSelectedOrClosestRegionId();
-            if (selectedRegionId == null) {
-                return;
-            }
-
-            let selectedGame = getGameByRegionAndRoom(selectedRegionId, game.playRoom);
-            if (selectedGame == null) { 
-                name = gameTypeNames[1];
-                game.playRoom = gameTypes[1];
-            } 
-            else { 
-                name = selectedGame.name;
-            }
-
-            html += '<div class="playbottom">' + name + '</div>';
-
-            css = {
-                width: '190px',
-                height: '40px',
-                'z-index': 'auto'
-            };
-
-            $('#playtype').addClass('hoverable');
-        }
-
-        $('#playtype').html(html);
-        $('#playtype').css(css);
-
-        playTypeMenuVisible = menuVisible;
+    } else {
     }
+
+    document.querySelector("#servermenu .header").textContent = fromMainPage ? 'Choose server' : 'Switch server';
+    document.querySelector("#servermenu .servers").innerHTML = html;
 };
 
-Games.popGames = function() {
-    if (!gamesSelectorVisible) {
-        UI.closeAllPanels('games');
-        let html = getGameSelectorHtml();
-        UI.hide('#menu');
-        $('#gameselector').html(html);
-        UI.show('#gameselector');
-        gamesSelectorVisible = true;
-        updateGameSelector();
+Games.closeServerMenu = function() {
+    UI.hidePanel('#servermenu');
+};
+
+Games.selectServer = function(e, server, fromMainPage) {
+    e?.stopPropagation();
+    if (e)
         Sound.UIClick();
-    }
+    if (fromMainPage)
+        updateServer(server);
+    Games.closeServerMenu();
+    game.serverUrl = server.url;
+    Games.setCurrentServer(server);
+    if (!fromMainPage)
+        Games.switchGame();
 };
 
-var getGameSelectorHtml = function() {
-    let html = '';
+Games.setCurrentServer = function(server) {
+    currentServer = server;
+};
 
-    html += '<div class="header">' + game.roomNameShort;
-    html += '<span class="region">&nbsp;&nbsp;&bull;&nbsp;&nbsp;' + game.regionName + '</span>';
-    html += '</div>';
-    html += '<div class="buttons">';
-    html += '<div class="button" onclick="Games.redirRoot()">CHANGE REGION</div>';
-    html += '</div>';
-
-    let roomsByType = [[],[],[],[],[],[],[],[],[]];
-
-    let regionRooms = getRegionByName(game.playRegion).games;
-    for (let room of regionRooms) {
-        roomsByType[room.type].push(room);
-    }
-
-    for (let type = 1; type < gameTypes.length; type++) {
-        if (roomsByType[type].length > 0) {
-            html += '<div class="item head">';
-            html += '<div class="gametype chooser section">' + gameTypeNames[type];
-            html += '<span class="infocontainer">&nbsp;<div class="infoicon">' + getGameTypeDescriptionHtml(type) + '</div></span>'
-            html += '</div>';
-            html += '<div class="clear"></div>';
-            html += '</div>';
-
-            for (let room of roomsByType[type]) {
-                let divClass, divAttribute;
-
-                if (room.id === game.playRoom) {
-                    divClass = ' sel';
-                    divAttribute = '';
-                }
-                else {
-                    divClass = ' selectable';
-                    divAttribute = ` onclick="Games.switchGame(&quot;${game.playRegion}-${room.id}&quot;)"`;
-                }
-
-                html += '<div class="item' + divClass + '"' + divAttribute + '>';
-                html += '<div class="gametype chooser">' + room.nameShort + '</div>';
-                html += '<div class="players number">' + (room.players != null ? (room.players - (room.bots || 0)) : '<span class="playersunknown">?</span>') + '</div>';
-                html += '<div class="bots number">' + (room.bots ? `+${room.bots}` : '') + '</div>';
-                html += '<div class="clear"></div>';
-                html += '</div>';
-            }
-        }
-    }
-
-    return html;
+Games.getCurrentServer = function() {
+    return currentServer;
 };
 
 Games.redirRoot = function() {
@@ -737,39 +380,7 @@ Games.redirRoot = function() {
     window.location = '/';
 };
 
-var updateGameSelector = function() {
-    refreshGamesData(function() {
-        let html = getGameSelectorHtml();
-        $('#gameselector').html(html);
-    });
-};
-
-Games.closeGames = function() {
-    if (gamesSelectorVisible) {
-        UI.hide('#gameselector');
-        UI.show('#menu');
-        gamesSelectorVisible = false;
-        Sound.UIClick();
-    }
-};
-
-Games.toggleGames = function() {
-    if (gamesSelectorVisible) {
-        Games.closeGames();
-    }
-    else {
-        Games.popGames();
-    }
-};
-
-Games.switchGame = function(gameServerId) {
-    Games.closeGames();
-    if (gameServerId != null) {
-        let regionRoom = gameServerId.split('-');
-        if (regionRoom.length == 2) {
-            [ game.playRegion, game.playRoom ] = regionRoom;
-        }
-    }
+Games.switchGame = function() {
     game.myScore = 0;
     game.server = {};
     game.state = Network.STATE.CONNECTING;
@@ -779,126 +390,6 @@ Games.switchGame = function(gameServerId) {
     Mobs.wipe();
     UI.reconnection();
     Games.start(game.myOriginalName);
-};
-
-var pingGameServersForRegions = function() {
-    pingHosts = {};
-    pingsAwaitingResponse = 0;
-
-    for (let regionIndex = 0; regionIndex < gamesData.length; regionIndex++) {
-        // Pick a host for pinging randomly from games in region
-        let games = gamesData[regionIndex].games;
-        let host = games[Tools.randInt(0, games.length - 1)].host;
-        if(pingHosts[host] == null) {
-            pingHosts[host] = {
-                ping: 9999,
-                num: 0,
-                threshold: 0,
-                server: regionIndex
-            };
-        }
-    }
-
-    Games.performPing();
-    Games.performPing();
-    Games.performPing();
-    performPingInterval = setInterval(Games.performPing, 300);
-};
-
-Games.performPing = function() {
-    if (!gameHasStarted && pingsAwaitingResponse <= 3) {
-        let pingNum = 9999;
-        let pingHost;
-
-        // Pick a host with the smallest number of pings
-        for (let host in pingHosts) {
-            if (pingHosts[host].num < pingNum) {
-                pingNum = pingHosts[host].num;
-                pingHost = host;
-            }
-        }
-
-        // Stop pinging when threshold reached, or ping host if not
-        if (pingNum > 6) {
-            
-            if (performPingInterval) {
-                clearInterval(performPingInterval);
-            }
-        }
-        else {
-            pingHosts[pingHost].num++;
-            let url = `https://${pingHost}/ping`;
-            performSinglePing(pingHost, url, function() {
-                performSinglePing(pingHost, url);
-            });
-        }
-    }
-};
-
-var performSinglePing = function(host, url, callback) {
-    if (!gameHasStarted && pingHosts[host] != null) {
-        pingsAwaitingResponse++;
-        let pingStartTimestamp = performance.now();
-        fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-cache' })
-            .then(_ => {
-                pingsAwaitingResponse--;
-
-                if (!gameHasStarted && pingHosts[host] != null) {
-                    let ping = performance.now() - pingStartTimestamp;
-
-                    // Have we made at least three pings to this host, and is this ping is within 10% of previous ping?
-                    pingHosts[host].threshold++;
-                    if ((Math.abs(pingHosts[host].ping - ping) < 0.1 * ping) && pingHosts[host].threshold >= 2) {
-                        // Is this ping is lower than previous ping?
-                        if (ping < pingHosts[host].ping) {
-                            // Update region with this ping
-                            gamesData[pingHosts[host].server].ping = ping;
-                            Games.findClosest();
-                            Games.updateRegion();
-                        }
-                        else {
-                            // Stop pinging this host
-                            delete pingHosts[host];
-                        }
-                    }
-                    else {
-                        // Is this ping is lower than previous ping?
-                        if (ping < pingHosts[host].ping) {
-                            // Update host and region with this ping
-                            pingHosts[host].ping = ping;
-                            gamesData[pingHosts[host].server].ping = ping;
-                            Games.findClosest();
-                            Games.updateRegion();
-
-                            if (callback) {
-                                callback();
-                            }
-                        }
-                    }
-                }
-            })
-            .catch(_ => {
-                pingsAwaitingResponse--;
-            });
-    }
-};
-
-Games.findClosest = function() {
-    let lowestPing = 9999;
-    let foundClosestRegion = false;
-
-    for (let index = 0; index < gamesData.length; index++) {
-        let region = gamesData[index];
-        if (region.ping && region.ping < lowestPing) {
-            lowestPing = region.ping;
-            closestRegionIndex = index;
-            foundClosestRegion = true;
-        }
-    }
-
-    if (foundClosestRegion && game.playRegion === 'closest') {
-        Games.updateType();
-    }
 };
 
 Games.highlightInput = function(id) {
@@ -916,85 +407,10 @@ Games.highlightInput = function(id) {
     setTimeout(function() { $(id).focus() }, 200);
 };
 
-Games.copyInviteLink = function() {
-    if (copyToClipboard(game.inviteLink)) {
-        UI.show('#invite-copied');
-        if (inviteCopiedTimeout) {
-            clearTimeout(inviteCopiedTimeout);
-        }
-        inviteCopiedTimeout = setTimeout(function() { UI.hide('#invite-copied') }, 2000);
-    }
-};
-
-var copyToClipboard = function(content) {
-    let span = document.createElement('span');
-    span.textContent = content;
-    span.style.whiteSpace = 'pre';
-
-    let iframe = document.createElement('iframe');
-    iframe.sandbox = 'allow-same-origin';
-    document.body.appendChild(iframe);
-    let contentWindow = iframe.contentWindow;
-    contentWindow.document.body.appendChild(span);
-
-    let selection = contentWindow.getSelection();
-    if (!selection) {
-        contentWindow = window;
-        selection = contentWindow.getSelection();
-        document.body.appendChild(span);
-    }
-
-    let range = contentWindow.document.createRange();
-    selection.removeAllRanges();
-    range.selectNode(span);
-    selection.addRange(range);
-
-    let copyResult = false;
-    try {
-        copyResult = contentWindow.document.execCommand('copy')
-    } catch (e) {}
-
-    selection.removeAllRanges();
-    span.remove();
-    iframe.remove();
-
-    return copyResult;
-};
-
 Games.start = function(playerName, fromMainPage) {
-    if (isGamesDataEmpty && !DEVELOPMENT) {
-        return;
-    }
-
     if (fromMainPage && game.state == Network.STATE.CONNECTING) {
         return;
     }
-
-    let savedRegionId = game.playRegion;
-
-    if (!(DEVELOPMENT && game.customServerUrl)) {
-        // Region
-        let regionId = getSelectedOrClosestRegionId();
-        if (!regionId) {
-            return;
-        }
-        game.playRegion = regionId;
-
-        // Room
-        let roomId = getSelectedRoomId();
-        let regionGame = getGameByRegionAndRoom(game.playRegion, roomId);
-        game.playHost = regionGame.host;
-        game.playPath = regionGame.path;
-        game.roomNameShort = regionGame.nameShort;
-        game.regionName = getRegionByName(game.playRegion).name;
-        game.playRoom = roomId;
-    }
-
-    // Stop any pinging of the game server hosts
-    if (performPingInterval != null) {
-        clearInterval(performPingInterval);
-    }
-    gameHasStarted = true;
 
     // Clear the main page if we're on it
     if (game.state == Network.STATE.LOGIN) {
@@ -1007,54 +423,11 @@ Games.start = function(playerName, fromMainPage) {
         name: playerName
     };
 
-    if (!(DEVELOPMENT && game.customServerUrl)) {
-        game.server = { id: `${game.playRegion}-${game.playRoom}` };
-
-        if (!game.playInvited) {
-            // Saved region id is used for settings because it might be 'closest' rather than an actual region
-            settings.region = savedRegionId;
-        }
-    } else {
-        game.server = { id: `custom-${game.customServerUrl}` };
-    }
-
     // Persist settings to storage
     Tools.setSettings(settings);
 
     UI.gameStart(playerName, fromMainPage);
-
-    // Usage telemetry
-    if (false) {
-        Tools.ajaxPost(`https://${game.backendHost}/enter`, {
-            id: config.settings.id,
-            name: playerName,
-            game: game.server.id,
-            source: document.referrer != null ? document.referrer : '',
-            mode: config.mobile ? 1 : 0,
-            version: game.version,
-            switch: !fromMainPage
-        });
-    }
 };
-
-function getSelectedRoomId() {
-    let room = game.playRoom;
-
-    // If the room is a game type, choose a game of that type at random
-    let gameType = gameTypes.indexOf(room);
-    if (gameType != -1) {
-        let regionGames = getRegionByName(game.playRegion).games;
-        let gameIds = [];
-        for (let regionGame of regionGames) {
-            if (regionGame.type == gameType) {
-                gameIds.push(regionGame.id);
-            }
-        }
-        room = gameIds[Tools.rand(0, 1) < .5 ? (gameIds.length - 1) : Tools.randInt(0, gameIds.length - 1)];
-    }
-
-    return room;
-}
 
 /**
  * Prepare new game upon receipt of LOGIN message
@@ -1062,6 +435,11 @@ function getSelectedRoomId() {
 Games.prep = function() {
     // Remove anything that may persist from previous game type
     Games.wipe();
+
+    UI.show("#roomnamecontainer");
+    UI.show("#scoreboard"); 
+    UI.show("#scorebig");
+    UI.show("#settings");
 
     switch(game.gameType) {
         case GameType.CTF:
@@ -1108,6 +486,10 @@ Games.prep = function() {
             conquest.blue_bar = createProgressbar(blue_color, -1, bar_width, bar_height);
             updateProgressbar(conquest.red_bar, 0);
             updateProgressbar(conquest.blue_bar, 0);
+            break;
+
+        case GameType.EDITOR:
+            prepEditor();
             break;
     }    
 };
@@ -1215,6 +597,9 @@ Games.wipe = function() {
 
     // clear conquest graphics
     removeConquestObjects();
+
+    // editor
+    wipeEditor();
 };
 
 function removeCtfObjects() {
@@ -1352,7 +737,7 @@ Games.networkFlag = function(msg) {
             minimapSprite: Textures.init('minimapFlagRed'),
             minimapBase: Textures.init('minimapBaseRed')
         };
-        if (game.gameType == GameType.FFA)
+        if (game.gameType == GameType.FFA || game.gameType == GameType.EDITOR)
             ctf.flagRed.minimapBase.visible = false;
         if (game.gameType == GameType.CTF)
             Graphics.minimapMob(ctf.flagRed.minimapBase, ctf.flagRed.basePos.x, ctf.flagRed.basePos.y);
@@ -1378,7 +763,7 @@ Games.networkFlag = function(msg) {
             minimapSprite: Textures.init('minimapFlagBlue'),
             minimapBase: Textures.init('minimapBaseBlue')
         };
-        if (game.gameType == GameType.FFA)
+        if (game.gameType == GameType.FFA || game.gameType == GameType.EDITOR)
             ctf.flagBlue.minimapBase.visible = false;
         if (game.gameType == GameType.CTF)
             Graphics.minimapMob(ctf.flagBlue.minimapBase, ctf.flagBlue.basePos.x, ctf.flagBlue.basePos.y);
@@ -1837,6 +1222,8 @@ Games.update = function(isResize) {
         case GameType.CTF:
             if (ctf.flagBlue) {
                 updateCtfFlag(ctf.flagBlue, isResize);
+            }
+            if (ctf.flagRed) {
                 updateCtfFlag(ctf.flagRed, isResize);
             }
             break;
@@ -1853,7 +1240,7 @@ Games.update = function(isResize) {
                     updateCtfFlag(ctf.flagRed, isResize);
                 break;
             case GameType.CONQUEST:
-                if (config.loadedMap == game.server.config.mapId) {
+                if (config.manifest.mapId == game.server.config.mapId) {
                     const END_SCORE = config.extra?.conquest_end_score || 60*60*10;
                     const END_PROGRESS = config.extra?.conquest_end_progress || 600;
                 

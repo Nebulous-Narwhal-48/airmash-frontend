@@ -20,9 +20,9 @@ var mainHowlInstance = {},
     explosionVolumeByMobType = [0, 0.7, 1, 0.4, 0, 0.7, 0.4, 0.7],
     launchVolumeByMissileType = [0, 0.7, 1, 0.4, 0, 0.7, 1, 0.7],
     launchPlaybackRateByMissileType = [0, 0.8, 0.5, 1, 0, 0.8, 0.5, 0.8],
-    playerKillVolumeByPlaneType = [0, 0.8, 1, 0.7, 0.8, 0.8],
-    thrusterPlaybackRateByPlaneType = [0, 1.5, 1.2, 0.8, 1.35, 1.7],
-    someKindOfThrusterVolumeByPlaneType = [0, 1, 1, 0.35, 1, 1],
+    //playerKillVolumeByPlaneType = [0, 0.8, 1, 0.7, 0.8, 0.8],
+    //thrusterPlaybackRateByPlaneType = [0, 1.5, 1.2, 0.8, 1.35, 1.7],
+    //someKindOfThrusterVolumeByPlaneType = [0, 1, 1, 0.35, 1, 1],
     thrusterPlaybackRateByMobType = [0, 0.8, 0.5, 1, 0, 0.8, 0.8, 0.8],
     playbackRateByMissileType = [0, 1.5, 0.8, 2, 1, 1.5],
     customVolumeBySpriteName = {
@@ -103,7 +103,8 @@ Sound.mobExplosion = function(pos, mobType) {
 };
 
 Sound.playerKill = function(playerObj) {
-    var t = playerKillVolumeByPlaneType[playerObj.type] * playerKillBaseVolume,
+    if (!config.ships[playerObj.type]) return;
+    var t = config.ships[playerObj.type].sound.kill_volume * playerKillBaseVolume,
         volume = getVolumeForCameraDistance(playerObj.pos) * t,
         spriteName = "explosion" + Tools.randInt(1, 6);
     volume < .01 || isTooMuchSoundPlaying("playerkills", 3) || maybePlaySound(spriteName, volume, playerObj.pos, Tools.rand(.8, 1.2))
@@ -282,12 +283,12 @@ Sound.clearThruster = function(playerId) {
 Sound.updateThruster = function(zeroIfPlayerOneIfMob, mobOrPlayer, isVisible) {
     if (config.settings.sound) {
         if (0 == zeroIfPlayerOneIfMob) {
-            if (PlaneType.Mohawk == mobOrPlayer.type) {
+            if (!config.ships[mobOrPlayer.type]) return;
+            var spriteName = config.ships[mobOrPlayer.type].sound.asset;            
+            if (spriteName === "chopper") {
                 isVisible = mobOrPlayer.render;
-                var spriteName = "chopper"
             } else {
                 isVisible = mobOrPlayer.keystate.UP || mobOrPlayer.keystate.DOWN;
-                spriteName = "thruster"
             }
             var thrusterName = "player_" + mobOrPlayer.id + "_" + mobOrPlayer.type
         } else {
@@ -303,8 +304,8 @@ Sound.updateThruster = function(zeroIfPlayerOneIfMob, mobOrPlayer, isVisible) {
                     return;
                 var l = getVolumeForCameraDistance(mobOrPlayer.pos);
                 if (0 == zeroIfPlayerOneIfMob)
-                    var finalVolume = l * someKindOfThrusterVolumeByPlaneType[mobOrPlayer.type] * d,
-                        rateToUse = thrusterPlaybackRateByPlaneType[mobOrPlayer.type];
+                    var finalVolume = l * config.ships[mobOrPlayer.type].sound.thruster_volume * d,
+                        rateToUse = config.ships[mobOrPlayer.type].sound.thruster_playback_rate;
                 else
                     finalVolume = l * p,
                     rateToUse = thrusterPlaybackRateByMobType[mobOrPlayer.type];
@@ -325,14 +326,14 @@ Sound.updateThruster = function(zeroIfPlayerOneIfMob, mobOrPlayer, isVisible) {
                     return;
                 l = getVolumeForCameraDistance(mobOrPlayer.pos);
                 if (0 == zeroIfPlayerOneIfMob) {
-                    finalVolume = l * someKindOfThrusterVolumeByPlaneType[mobOrPlayer.type] * d;
+                    finalVolume = l * config.ships[mobOrPlayer.type].sound.thruster_volume * d;
                     mobOrPlayer.boost && (finalVolume *= 3)
                 } else
                     finalVolume = l * p;
                 if (finalVolume < .01)
                     return void Sound.clearThruster(thrusterName);
                 rateToUse = null;
-                if (0 == zeroIfPlayerOneIfMob && 3 == mobOrPlayer.type && (rateToUse = thrusterPlaybackRateByPlaneType[mobOrPlayer.type] + mobOrPlayer.speed.length() / 20),
+                if (0 == zeroIfPlayerOneIfMob && 3 == mobOrPlayer.type && (rateToUse = config.ships[mobOrPlayer.type].sound.thruster_playback_rate + mobOrPlayer.speed.length() / 20),
                 game.time - thrustersByName[thrusterName].started < 250)
                     return;
                 playIfSoundEnabled(thrustersByName[thrusterName].soundId, thrustersByName[thrusterName].sound, null, mobOrPlayer.pos, rateToUse, [thrustersByName[thrusterName].vol, finalVolume, 100, true]),

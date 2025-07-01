@@ -6,6 +6,7 @@ var mobs = {};
 var doodads = [];//visible doodads
 var someFlag = {};
 let loadedDoodads = [];
+let loadedGroundDoodads = [];
 const radiusToScaleRatio = 120; //config.doodads uses scale, config.walls uses radius
 
 Mobs.add = function (netmob, network, ownerId) {
@@ -89,19 +90,26 @@ Mobs.countDoodads = function () {
 
 Mobs.setupDoodads = function () {
     Mobs.removeDoodads();
-    loadedDoodads = JSON.parse(JSON.stringify(config.doodads.concat(config.groundDoodads)));
-    for (var id = 0; id < loadedDoodads.length; id++) {
+    //loadedDoodads = JSON.parse(JSON.stringify(config.doodads.concat(config.groundDoodads)));
+    loadedDoodads = JSON.parse(JSON.stringify(config.doodads));
+    for (let id = 0; id < loadedDoodads.length; id++) {
         Mobs.addDoodad(loadedDoodads[id], id);
     }
     Tools.initBuckets(loadedDoodads);
+    
+    loadedGroundDoodads = JSON.parse(JSON.stringify(config.groundDoodads));
+    for (let id = 0; id < loadedGroundDoodads.length; id++) {
+        Mobs.addDoodad(loadedGroundDoodads[id], id, true);
+    }
+    //TODO: add ground doodads to buckets
 };
 
-Mobs.addDoodad = function (doodad, id=null) {
+Mobs.addDoodad = function (doodad, id=null, visible=false) {
     var isInteger = Number.isInteger(doodad[2]);
     var texture = Textures.init((isInteger ? "mountain" : "") + doodad[2]);
     texture.scale.set(doodad[3]);
     texture.position.set(doodad[0], doodad[1]);
-    texture.visible = false;
+    texture.visible = visible;
     if(doodad[4]) {
         texture.rotation = doodad[4];
     }
@@ -111,7 +119,7 @@ Mobs.addDoodad = function (doodad, id=null) {
     if(doodad[6]) {
         texture.tint = doodad[6];
     }
-    doodad[7] = false;
+    doodad[7] = visible;
     doodad[8] = texture;
     doodad[9] = isInteger ? 0 : 1;
     if (id === null) {
@@ -126,14 +134,15 @@ Mobs.getClosestDoodad = function (e) {
     return Tools.clamp(3.333 * (i - .5), .2, 1)
 };
 
-Mobs.getDoodadAtCoord = function(x, y) {
-    for (let i=0; i<loadedDoodads.length; i++) {
-        if (!loadedDoodads[i]) continue;
-        const [center_x, center_y, , scale] = loadedDoodads[i];
+Mobs.getDoodadAtCoord = function(x, y, doodad_type) {
+    const loaded = doodad_type == 'groundDoodad' ? loadedGroundDoodads : loadedDoodads;
+    for (let i=0; i<loaded.length; i++) {
+        if (!loaded[i]) continue;
+        const [center_x, center_y, , scale] = loaded[i];
         const radius = scale * radiusToScaleRatio;
         const _x = x - center_x, _y = y - center_y;
         if (Math.sqrt(_x*_x + _y*_y) < radius) {
-            return [i, loadedDoodads[i]];
+            return [i, loaded[i], loaded[i][9]/*is_not_mountain*/];
         }
     }
 };
@@ -174,14 +183,17 @@ Mobs.updateDoodads = function () {
 };
 
 Mobs.removeDoodads = function(remove_only_mountains, remove_only_id) {
-    for (let id = 0; id < loadedDoodads.length; id++) {
-        if (!loadedDoodads[id]) continue;
-        if (remove_only_id && id != remove_only_id) continue;
-        let [,,textureNameOrId,,,,,,sprite, is_not_mountain] = loadedDoodads[id];
-        if (remove_only_mountains && is_not_mountain) continue;
-        game.graphics.layers.doodads.removeChild(sprite);
-        sprite.destroy();
-        loadedDoodads[id] = null;
+    for (let loaded of [loadedDoodads, loadedGroundDoodads]) {
+        for (let id = 0; id < loaded.length; id++) {
+            if (!loaded[id]) continue;
+            if (typeof remove_only_id != "undefined" && id != remove_only_id) continue;
+            let [,,textureNameOrId,,,,,,sprite, is_not_mountain] = loaded[id];
+            if (remove_only_mountains === true && is_not_mountain) continue;
+            if (remove_only_mountains === false && !is_not_mountain) continue;
+            game.graphics.layers.doodads.removeChild(sprite);
+            sprite.destroy();
+            loaded[id] = null;
+        }
     }
 
     for (let l = doodads.length - 1; l >= 0; l--) {

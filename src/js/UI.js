@@ -650,7 +650,7 @@ UI.parseCommand = function(chatInput) {
                     return;
                 }
 
-                if (byteLength > MAX_IMG_BYTES[w]) {
+                if (byteLength > (MAX_IMG_BYTES[w]||0)) {
                     UI.addChatMessage(`Image too big: ${byteLength} > ${MAX_IMG_BYTES[w]}`);
                     return;
                 }
@@ -805,6 +805,21 @@ UI.escapeHTML = function(s, autolink) {
     }
 
     return s;
+};
+
+UI.escapeString = function(s) {
+    // https://stackoverflow.com/questions/7753448/how-do-i-escape-quotes-in-html-attribute-values
+    return ('' + s) /* Forces the conversion to string. */
+        .replace(/\\/g, '\\\\') /* This MUST be the 1st replacement. */
+        .replace(/\t/g, '\\t') /* These 2 replacements protect whitespaces. */
+        .replace(/\n/g, '\\n')
+        .replace(/\u00A0/g, '\\u00A0') /* Useful but not absolutely necessary. */
+        .replace(/&/g, '\\x26') /* These 5 replacements protect from HTML/XML. */
+        .replace(/'/g, '\\x27')
+        .replace(/"/g, '\\x22')
+        .replace(/</g, '\\x3C')
+        .replace(/>/g, '\\x3E')
+        ;
 };
 
 var onWindowResize = function() {
@@ -1017,14 +1032,39 @@ UI.resizeHUD = function() {
     game.graphics.gui.hudSpriteEnergy.position.set(n, game.halfScreenY)
 };
 
+UI.setupAircraft = function() {
+    console.log('UI.setupAircraft');
+    document.querySelectorAll('.aircraft').forEach(x=>x.remove());
+
+    let html = '';
+    for (let i=0; i<config.ships.length; i++) {
+        if (!config.ships[i]?.name) continue;
+        html += `<div 
+            onclick="UI.selectAircraft(${i})"
+            onmouseenter="var e=event; e.data={t:${i}}; UI.popTooltip(e)"
+            onmouseleave="UI.closeTooltip()"
+            id="selectaircraft-${i}" class="aircraft">
+        </div>`;
+    }
+    document.getElementById('sidebar').insertAdjacentHTML("afterbegin", html);
+    [...document.querySelectorAll('.aircraft')][0].classList.add('topborder');
+    [...document.querySelectorAll('.aircraft')].at(-1).classList.add('bottomborder');
+    if (Players.getMe())
+        UI.aircraftSelected(Players.getMe().type);
+};
+
 UI.selectAircraft = function(e) {
     Network.sendCommand("respawn", e + "")
 };
 
 UI.aircraftSelected = function(e) {
     e = parseInt(e);
-    for (var t = 1; t <= 5; t++)
-        t == e ? $("#selectaircraft-" + t).addClass("sel") : $("#selectaircraft-" + t).removeClass("sel")
+    for (let i=0; i<config.ships.length; i++) {
+        if (!config.ships[i]?.name) continue;
+        i == e ? document.querySelector("#selectaircraft-" + i).classList.add("sel") : document.querySelector("#selectaircraft-" + i).classList.remove("sel")
+    }
+    (document.getElementById('config_debug_editor_action')||{}).value = '';
+    (document.getElementById('config_debug_editor_action')||{}).dispatchEvent(new Event('change'));
 };
 
 UI.killed = function(victim) {
@@ -1146,6 +1186,7 @@ UI.showCommandReply = function(e) {
 };
 
 UI.updateHUD = function(e, t, n) {
+    if (n && !config.ships[n.type]) return;
     e = Tools.clamp(e, 0, 1),
     t = Tools.clamp(t, 0, 1),
     game.graphics.gui.hudHealth.rotation = -1.1 * (1 - e),
@@ -1198,8 +1239,7 @@ UI.toggleScore = function() {
 
 UI.openLogin = function() {
     isLoginVisible || (UI.showPanel("#loginselector"),
-    isLoginVisible = true,
-    Games.closeDropdowns())
+    isLoginVisible = true);
 };
 
 UI.closeLogin = function() {
@@ -1211,7 +1251,7 @@ UI.openSkinMenu = function() {
     if (isSkinMenuVisible) return;
     UI.showPanel("#skinmenu");
     isSkinMenuVisible = true;
-    Games.closeDropdowns();
+    Games.closeServerMenu();
 
     const my_skins = JSON.parse(localStorage.getItem("my_skins")||'[]');
 
@@ -1365,7 +1405,7 @@ UI.closeAllPanels = function(e) {
     "mainmenu" !== e && UI.closeMainMenu(),
     "score" !== e && UI.closeScore(),
     "help" !== e && UI.hideHelp(),
-    "games" !== e && Games.closeGames(),
+    "games" !== e && Games.closeServerMenu(),
     "invite" !== e && UI.closeInvite(),
     "login" !== e && UI.closeLogin(),
     "keybinds" !== e && Input.closeKeybinds(),
@@ -1598,9 +1638,9 @@ UI.updateScore = function (scoreDetailedMsg) {
 
 UI.popMenu = function(event, closeMenu) {
     if (game.state == Network.STATE.LOGIN) {
-        Games.closeDropdowns()
         UI.closeLogin();
         UI.closeSkinMenu();
+        Games.closeServerMenu();
         return;
     }
 
@@ -1719,7 +1759,7 @@ UI.closeMenu = function() {
 };
 
 UI.nameEntered = function() {
-    var playerName = $("#playername").val().trim();
+    var playerName = document.querySelector("#playername").value.trim();
     if (playerName.length > 0) {
         game.myOriginalName = playerName;
         Games.start(playerName, true);
@@ -1825,10 +1865,10 @@ UI.gameStart = function(playerName, isFirstTime) {
                 UI.show("#chatbox");
         }
 
-        UI.show("#roomnamecontainer");
-        UI.show("#scoreboard");
-        UI.show("#scorebig");
-        UI.show("#settings");
+        // UI.show("#roomnamecontainer");
+        // UI.show("#scoreboard"); 
+        // UI.show("#scorebig");
+        // UI.show("#settings");
         UI.show("#sidebar");
         UI.showScaleSlider();
         if (config.mobile) {
@@ -1895,9 +1935,10 @@ UI.reconnection = function() {
 };
 
 UI.loggedIn = function(e) {
+    const nameShort = Games.getCurrentServer().nameShort && Games.getCurrentServer().nameShort != 'undefined' ? Games.getCurrentServer().nameShort : Games.getCurrentServer().name;
     $("#roomname").html(game.roomName),
     $("#scoreheader").html(game.roomName + "&nbsp;&nbsp;"),
-    $("#open-menu").html('<span class="arrowdown"></span>' + game.roomNameShort + '&nbsp;&nbsp;<span class="region">&bull;&nbsp;&nbsp;' + game.regionName + "</span>"),
+    $("#open-menu").html('<span class="arrowdown"></span>' + nameShort + '&nbsp;&nbsp;<span class="region">&bull;&nbsp;&nbsp;' + Games.getCurrentServer().region_name + "</span>"),
     UI.visibilityHUD(true),
     UI.visibilityMinimap(true),
     UI.updateHUD(1, 1)
@@ -2009,21 +2050,6 @@ UI.setup = function() {
         game.state == Network.STATE.PLAYING && (UI.openScore(),
         e.stopPropagation())
     }),
-    $("#selectaircraft-1").on("click", function() {
-        UI.selectAircraft(1)
-    }),
-    $("#selectaircraft-2").on("click", function() {
-        UI.selectAircraft(2)
-    }),
-    $("#selectaircraft-3").on("click", function() {
-        UI.selectAircraft(3)
-    }),
-    $("#selectaircraft-4").on("click", function() {
-        UI.selectAircraft(4)
-    }),
-    $("#selectaircraft-5").on("click", function() {
-        UI.selectAircraft(5)
-    }),
     $("#mainmenu-fullscreen").on("click", Graphics.toggleFullscreen),
     $("#mainmenu-invite").on("click", UI.openInvite),
     $("#mainmenu-score").on("click", UI.openScore),
@@ -2085,11 +2111,6 @@ UI.setup = function() {
         UI.selectUpgrade(4)
     });
     var e;
-    for (e = 1; e <= 5; e++)
-        $("#selectaircraft-" + e).on("mouseenter", {
-            t: e
-        }, UI.popTooltip),
-        $("#selectaircraft-" + e).on("mouseleave", UI.closeTooltip);
     for (e = 1; e <= 4; e++)
         $("#selectupgrade-" + e).on("mouseenter", {
             t: 100 + e

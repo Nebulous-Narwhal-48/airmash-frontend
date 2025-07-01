@@ -29,11 +29,6 @@ window.game = {
     roomName: "",
     roomNameShort: "",
     regionName: "",
-    playRegion: "dev",
-    playRoom: "ffa",
-    playHost: "",
-    playPath: "",
-    playInvited: false,
     gameType: null,
     inviteLink: "",
     lastFlagSet: "xx",
@@ -51,13 +46,15 @@ window.game = {
     graphics: {},
     debug: {},
     buckets: [],
-    customServerUrl: null,
-    backendHost: "data.airmash.online",
+    serverUrl: null,
+    backendHost: !location.href.includes('old') ? "data.airmash.rocks" : "data.airmash.online",
     server: {
         config: {
             playerBounds: {MIN_X: -16352, MIN_Y: -8160, MAX_X: 16352, MAX_Y: 8160},
             mapBounds: {MIN_X: -16384, MIN_Y: -8192, MAX_X: 16384, MAX_Y: 8192},
             mapId: 'vanilla',
+            parentMapId: null,
+            mapVersion: [0,0,0,0,0,0,0,0],
         },
     }, // { id, config: interface LoginServerConfig }
     editorMode: false,
@@ -77,63 +74,364 @@ window.config = {
     },
     settings: {},
     auth: {},
+    manifest: {
+        mapId: null,
+        parentMapId: null,
+        mapVersion: [0,0,0,0,0,0,0,0],
+        ships: [, [0,0,0], [0,0,0], [0,0,0], [0,0,0], [0,0,0]],
+    },
     ships: [
         // Unused (0)
         {},
         // PlaneType.Predator (1)
         {
-            name: "raptor",
-            turnFactor: .065,
-            accelFactor: .225,
-            maxSpeed: 5.5,
-            minSpeed: .001,
-            brakeFactor: .025,
-            energyLight: .6,
-            collisions: [[0, 5, 23], [0, -15, 15], [0, -25, 12]]
+            "name": "raptor",
+            "displayName": "Predator",
+          
+            "special": 1,
+          
+            "turnFactor": 0.065,
+            "accelFactor": 0.225,
+            "brakeFactor": 0.025,
+            "boostFactor": 1.5,
+            "infernoFactor": 0.75,
+          
+            "maxSpeed": 5.5,
+            "minSpeed": 0.001,
+            "flagSpeed": 5,
+          
+            "healthRegen": 0.001,
+            "energyRegen": 0.008,
+            "fireEnergy": 0.6,
+            "specialEnergy": 0,
+            "specialEnergyRegen": -0.01,
+            "specialDelay": 0,
+          
+            "fireDelay": 550,
+            "damageFactor": 2,
+            "energyLight": 0.6,
+          
+            "collisions": [
+              [0, 5, 23],
+              [0, -15, 15],
+              [0, -25, 12]
+            ],
+            "enclose_radius": 32,
+          
+            "repelEnergy": 2100,
+          
+            "fire": {
+              "default": [{ "type": 1, "x": 0, "y": 35, "rot": 0, "alt": false }],
+              "special": []
+            },
+          
+            "infernoFire": {
+              "default": [
+                { "type": 1, "x": -20, "y": 5, "rot": -0.05, "alt": false },
+                { "type": 1, "x": 0, "y": 35, "rot": 0, "alt": false },
+                { "type": 1, "x": 20, "y": 5, "rot": 0.05, "alt": false }
+              ],
+              "special": []
+            },
+          
+            "graphics": {
+                "frame": [788, 4, 256, 256],
+                "frame_shadow": [540, 4, 128, 128],
+                "size": {"w": 256, "h": 256},
+                "baseScale": 0.25,
+                "anchor": [0.5, 0.6],
+                "thrusters": [
+                    {"pos_angle":0, "pos_radius":20, "rot_factor":1, "scale_x":0.3, "scale_y":0.5, "glow_pos_angle1":0, "glow_pos_angle2":0.5, "glow_pos_radius":40, "glow_scale_x":1.5, "glow_scale_y":1, "glow_alpha_factor":0.3}
+                ],
+                "rotors": [],
+                "explosion": {"params":[1.5, 2, 2, 3]}
+            },
+            "sound": {
+                "asset": "thruster",
+                "kill_volume": 0.8,
+                "thruster_playback_rate": 1.5,
+                "thruster_volume": 1
+            }
         },
         // PlaneType.Goliath (2)
         {
-            name: "spirit",
-            turnFactor: .04,
-            accelFactor: .15,
-            maxSpeed: 3.5,
-            minSpeed: .001,
-            brakeFactor: .015,
-            energyLight: .9,
-            collisions: [[0, 0, 35], [50, 14, 16], [74, 26, 14], [30, 8, 23], [63, 22, 15], [-50, 14, 16], [-74, 26, 14], [-30, 8, 23], [-63, 22, 15]]
+            "name": "spirit",
+            "displayName": "Goliath",
+          
+            "special": 2,
+          
+            "turnFactor": 0.04,
+            "accelFactor": 0.15,
+            "brakeFactor": 0.015,
+            "boostFactor": 1,
+            "infernoFactor": 0.75,
+          
+            "maxSpeed": 3.5,
+            "minSpeed": 0.001,
+            "flagSpeed": 5,
+          
+            "healthRegen": 0.0005,
+            "energyRegen": 0.005,
+            "fireEnergy": 0.9,
+            "specialEnergy": 0.5,
+            "specialEnergyRegen": 0,
+            "specialDelay": 1000,
+          
+            "fireDelay": 300,
+            "damageFactor": 1,
+            "energyLight": 0.9,
+          
+            "collisions": [
+              [0, 0, 35],
+              [50, 14, 16],
+              [74, 26, 14],
+              [30, 8, 23],
+              [63, 22, 15],
+              [-50, 14, 16],
+              [-74, 26, 14],
+              [-30, 8, 23],
+              [-63, 22, 15]
+            ],
+            "enclose_radius": 88,
+          
+            "repelEnergy": 7500,
+          
+            "fire": {
+              "default": [{ "type": 2, "x": 0, "y": 35, "rot": 0, "alt": false }],
+              "special": []
+            },
+          
+            "infernoFire": {
+              "default": [
+                { "type": 2, "x": -30, "y": 0, "rot": -0.05, "alt": false },
+                { "type": 2, "x": 0, "y": 35, "rot": 0, "alt": false },
+                { "type": 2, "x": 30, "y": 0, "rot": 0.05, "alt": false }
+              ],
+              "special": []
+            },
+          
+            "graphics": {
+                "frame": [4, 4, 512, 256],
+                "frame_shadow": [4, 4, 256, 128],
+                "size": {"w": 512, "h": 256},
+                "baseScale": 0.35,
+                "anchor": [0.5, 0.5],
+                "thrusters": [
+                    {"pos_angle":0.5, "pos_radius":32, "rot_factor":0.5, "scale_x":0.4, "scale_y":0.6, "glow_pos_angle1":-0.3, "glow_pos_angle2":0, "glow_pos_radius":50, "glow_scale_x":2.5, "glow_scale_y":1.5, "glow_alpha_factor":0.3},
+                    {"pos_angle":-0.5, "pos_radius":32, "rot_factor":0.5, "scale_x":0.4, "scale_y":0.6, "glow_pos_angle1":0.3, "glow_pos_angle2":0, "glow_pos_radius":50, "glow_scale_x":2.5, "glow_scale_y":1.5, "glow_alpha_factor":0.3},
+                ],
+                "rotors": [],
+                "explosion": {"params":[2, 2.5, 4, 7]}
+            },
+            "sound": {
+                "asset": "thruster",
+                "kill_volume": 1,
+                "thruster_playback_rate": 1.2,
+                "thruster_volume": 1
+            }
         },
         // PlaneType.Mohawk (3)
         {
-            name: "mohawk",
-            turnFactor: .07,
-            accelFactor: .275,
-            maxSpeed: 6,
-            minSpeed: .001,
-            brakeFactor: .025,
-            energyLight: .3,
-            collisions: [[0, -12, 15], [0, 0, 17], [0, 13, 15], [0, 26, 15]]
+            "name": "mohawk",
+            "displayName": "Mohawk",
+
+            "special": 3,
+            "turnFactor": 0.07,
+            "accelFactor": 0.275,
+            "brakeFactor": 0.025,
+            "boostFactor": 1,
+            "infernoFactor": 0.75,
+            "maxSpeed": 6,
+            "minSpeed": 0.001,
+            "flagSpeed": 5,
+            "healthRegen": 0.001,
+            "energyRegen": 0.01,
+            "fireEnergy": 0.3,
+            "specialEnergy": 0,
+            "specialEnergyRegen": 0,
+            "specialDelay": 0,
+            "fireDelay": 300,
+            "damageFactor": 2.87,
+            "energyLight": 0.3,
+            "collisions": [
+                [ 0, -12, 15 ],
+                [ 0, 0, 17 ],
+                [ 0, 13, 15 ],
+                [ 0, 26, 15 ]
+            ],
+            "enclose_radius": 34,
+            "repelEnergy": 1800,
+            "fire": {
+                "default": [ { "type": 3, "x": 15, "y": 10, "rot": 0, "alt": true } ],
+                "special": []
+            },
+            "infernoFire": {
+                "default": [
+                    { "type": 3, "x": -10, "y": 5, "rot": -0.05, "alt": false },
+                    { "type": 3, "x": 0, "y": 10, "rot": 0, "alt": false },
+                    { "type": 3, "x": 10, "y": 5, "rot": 0.05, "alt": false }
+                ],
+                "special": []
+            },
+            "graphics": {
+                "frame": [1316, 4, 128, 256],
+                "frame_shadow": [812, 4, 64, 128],
+                "size": { "w": 128, "h": 256 },
+                "baseScale": 0.25,
+                "anchor": [0.5, 0.4],
+                "thrusters": [],
+                "rotors": [ {"scale":2, "alpha":0.8, "shadow_scale":2.4} ],
+                "explosion": { "params": [ 1.5, 2, 2, 3 ] }
+            },
+            "sound": {
+                "asset": "chopper",
+                "kill_volume": 0.7,
+                "thruster_playback_rate": 0.8,
+                "thruster_volume": 0.35
+            }
         },
         // PlaneType.Tornado (4)
         {
-            name: "tornado",
-            turnFactor: .055,
-            accelFactor: .2,
-            maxSpeed: 4.5,
-            minSpeed: .001,
-            brakeFactor: .025,
-            energyLight: .5,
-            collisions: [[0, 8, 18], [14, 12, 13], [-14, 12, 13], [0, -12, 16], [0, -26, 14], [0, -35, 12]]
+            "name": "tornado",
+            "displayName": "Tornado",
+
+            "special": 4,
+            "turnFactor": 0.055,
+            "accelFactor": 0.2,
+            "brakeFactor": 0.025,
+            "boostFactor": 1,
+            "infernoFactor": 0.75,
+            "maxSpeed": 4.5,
+            "minSpeed": 0.001,
+            "flagSpeed": 5,
+            "healthRegen": 0.001,
+            "energyRegen": 0.006,
+            "fireEnergy": 0.5,
+            "specialEnergy": 0.9,
+            "specialEnergyRegen": 0,
+            "specialDelay": 0,
+            "fireDelay": 500,
+            "damageFactor": 1.564516129032258,
+            "energyLight": 0.5,
+            "collisions": [
+                [ 0, 8, 18 ],
+                [ 14, 12, 13 ],
+                [ -14, 12, 13 ],
+                [ 0, -12, 16 ],
+                [ 0, -26, 14 ],
+                [ 0, -35, 12 ]
+            ],
+            "enclose_radius": 38,
+            "repelEnergy": 2400,
+            "fire": {
+                "default": [
+                    { "type": 5, "x": 0, "y": 40, "rot": 0, "alt": false }
+                ],
+                "special": [
+                    { "type": 6, "x": -15, "y": 10, "rot": -0.05, "alt": false },
+                    { "type": 6, "x": 0, "y": 40, "rot": 0, "alt": false },
+                    { "type": 6, "x": 15, "y": 10, "rot": 0.05, "alt": false }
+                ]
+            },
+            "infernoFire": {
+                "default": [
+                    { "type": 5, "x": -15, "y": 10, "rot": -0.05, "alt": false },
+                    { "type": 5, "x": 0, "y": 40, "rot": 0, "alt": false },
+                    { "type": 5, "x": 15, "y": 10, "rot": 0.05, "alt": false }
+                ],
+                "special": [
+                    { "type": 5, "x": -30, "y": 20, "rot": -0.06, "alt": false },
+                    { "type": 5, "x": -20, "y": 15, "rot": -0.03, "alt": false },
+                    { "type": 5, "x": 0, "y": 40, "rot": 0, "alt": false },
+                    { "type": 5, "x": 20, "y": 15, "rot": 0.03, "alt": false },
+                    { "type": 5, "x": 30, "y": 20, "rot": 0.06, "alt": false }
+                ]
+            },
+            "graphics": {
+                "frame": [524, 4, 256, 256],
+                "frame_shadow": [268, 4, 128, 128],
+                "size": { "w": 256, "h": 256 },
+                "baseScale": 0.28,
+                "anchor": [0.5, 0.65],
+                "thrusters": [
+                    {"pos_angle":0.15, "pos_radius":28, "rot_factor":0.5, "scale_x":0.3, "scale_y":0.5, "glow_pos_angle1":-0.2, "glow_pos_angle2":0, "glow_pos_radius":45, "glow_scale_x":2.5, "glow_scale_y":1.5, "glow_alpha_factor":0.25},
+                    {"pos_angle":-0.15, "pos_radius":28, "rot_factor":0.5, "scale_x":0.3, "scale_y":0.5, "glow_pos_angle1":0.2, "glow_pos_angle2":0, "glow_pos_radius":45, "glow_scale_x":2.5, "glow_scale_y":1.5, "glow_alpha_factor":0.25},
+                ],
+                "rotors": [],
+                "explosion": { "params": [ 1.5, 2, 2, 3 ] }
+            },
+            "sound": {
+                "asset": "thruster",
+                "kill_volume": 0.8,
+                "thruster_playback_rate": 1.35,
+                "thruster_volume": 1
+            }
         },
         // PlaneType.Prowler (5)
         {
-            name: "prowler",
-            turnFactor: .055,
-            accelFactor: .2,
-            maxSpeed: 4.5,
-            minSpeed: .001,
-            brakeFactor: .025,
-            energyLight: .75,
-            collisions: [[0, 11, 25], [0, -8, 18], [19, 20, 10], [-19, 20, 10], [0, -20, 14]]
+            "name": "prowler",
+            "displayName": "Prowler",
+            
+            "special": 5,
+            "turnFactor": 0.055,
+            "accelFactor": 0.2,
+            "brakeFactor": 0.025,
+            "boostFactor": 1,
+            "infernoFactor": 0.75,
+            "maxSpeed": 4.5,
+            "minSpeed": 0.001,
+            "flagSpeed": 5,
+            "healthRegen": 0.001,
+            "energyRegen": 0.006,
+            "fireEnergy": 0.75,
+            "specialEnergy": 0.6,
+            "specialEnergyRegen": 0,
+            "specialDelay": 1500,
+            "damageFactor": 1.6666666666666667,
+            "fireDelay": 300,
+            "energyLight": 0.75,
+            "collisions": [
+                [ 0, 11, 25 ],
+                [ 0, -8, 18 ],
+                [ 19, 20, 10 ],
+                [ -19, 20, 10 ],
+                [ 0, -20, 14 ]
+            ],
+            "enclose_radius": 36,
+            "repelEnergy": 2600,
+            "fire": {
+                "default": [
+                    { "type": 7, "x": 0, "y": 35, "rot": 0, "alt": true }
+                ],
+                "special": []
+            },
+            "infernoFire": {
+                "default": [
+                    { "type": 7, "x": -20, "y": 0, "rot": -0.05, "alt": false },
+                    { "type": 7, "x": 0, "y": 35, "rot": 0, "alt": false },
+                    { "type": 7, "x": 20, "y": 0, "rot": 0.05, "alt": false }
+                ],
+                "special": []
+            },
+            "graphics": {
+                "frame": [1052, 4, 256, 256],
+                "frame_shadow": [676, 4, 128, 128],
+                "size": {"w": 256, "h": 256},
+                "baseScale": 0.28,
+                "anchor": [0.5, 0.5],
+                "thrusters": [
+                    {"pos_angle":0.35, "pos_radius":20, "rot_factor":0.5, "scale_x":0.3, "scale_y":0.4, "glow_pos_angle1":-0.2, "glow_pos_angle2":0, "glow_pos_radius":35, "glow_scale_x":2.5, "glow_scale_y":1.5, "glow_alpha_factor":0.2},
+                    {"pos_angle":-0.35, "pos_radius":20, "rot_factor":0.5, "scale_x":0.3, "scale_y":0.4, "glow_pos_angle1":0.2, "glow_pos_angle2":0, "glow_pos_radius":35, "glow_scale_x":2.5, "glow_scale_y":1.5, "glow_alpha_factor":0.2},
+                ],
+                "rotors": [],
+                "explosion": {"params":[1.5, 2, 2, 3]}
+            },
+            "sound": {
+                "asset": "thruster",
+                "kill_volume": 0.8,
+                "thruster_playback_rate": 1.7,
+                "thruster_volume": 1
+            }
         }
     ],
     /*
@@ -1379,17 +1677,6 @@ window.addEventListener('DOMContentLoaded', function(){
     ticker.add(scheduleFrame),
     ticker.start(),
     setInterval(scheduleOccasionalFrameWhileBlurred, 500);
-
-    let customServerHashPrefix = '#connect#'
-    if (DEVELOPMENT && window.location.hash.startsWith(customServerHashPrefix))
-    {
-        game.playRegion = "custom";
-        game.playRoom = "custom";
-        game.playInvited = true;
-        game.myOriginalName = config.settings.name || Tools.randomID(6);
-        game.customServerUrl = window.location.hash.substr(customServerHashPrefix.length);
-        Games.start(game.myOriginalName, true);
-    }
 });
 
 !function() {

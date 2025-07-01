@@ -1,3 +1,4 @@
+import { startEditor } from './editor.js';
 import Vector from './Vector.js';
 
 // if the player is logged in, all settings except for these are synchronised with the settings service (https://data.airmash.online/settings)
@@ -331,8 +332,8 @@ Tools.easing = {
     }
 };
 
-Tools.setDebugOptions = function(options) {
-    let {collisions, hide_container_map, hide_container_sea, hide_container_shadows, hide_texture_player, hide_texture_thruster, hide_texture_mountains, hide_texture_sea_mask, disable_region_ping, log_packets, mock_server, remove_mountains, teleport, editor_mode} = options;
+Tools.setDebugOptions = function(options, persist=true) {
+    let {collisions, hide_container_map, hide_container_sea, hide_container_shadows, hide_texture_player, hide_texture_thruster, hide_texture_mountains, hide_texture_sea_mask, disable_region_ping, log_packets, remove_mountains, teleport, editor_mode} = options;
     let saved = JSON.parse(localStorage.getItem("debug_options")||"{}");
     for (let k in options) {
         if (typeof options[k] !== 'undefined') {
@@ -368,35 +369,8 @@ Tools.setDebugOptions = function(options) {
         Network.sendCommand("server", `test teleport ${x} ${y}`);
         document.getElementById("config_debug_teleport").value = '';
     }
-    if (editor_mode) {
-        if (game.state !== Network.STATE.LOGIN) {
-            console.error('Logout to enter editor mode');
-            return;
-        }
-
-        function startEditor() {
-            config.debug.mock_server = true;
-            game.editorMode = true;
-            game.freeCamera = true;
-            Input.setupEditorMode();
-            Games.start('playerName', true);
-            document.getElementById("config_debug_editor_mode").checked = false;
-            document.querySelector('.debug_editor').style.display = 'block';
-            document.querySelector('.debug_client').style.display = 'none';
-            document.querySelector('.debug_server').style.display = 'none';
-            UI.show("#debug_options");
-        }
-
-        game.playRegion = 'dev';
-        if (!window.DEVELOPMENT) {
-            window.DEVELOPMENT = true;
-            Games.refreshGamesData(startEditor);
-        } else {
-            startEditor();
-        }
-
-    }
-    localStorage.setItem("debug_options", JSON.stringify(saved));
+    if (persist)
+        localStorage.setItem("debug_options", JSON.stringify(saved));
 };
 
 Tools.setupDebug = function() {
@@ -411,7 +385,6 @@ Tools.setupDebug = function() {
 
         let debug_options = JSON.parse(localStorage.getItem("debug_options")||"{}");
         debug_options.remove_mountains = false;
-        debug_options.editor_mode = false;
         debug_options.teleport = '';
         Tools.setDebugOptions(debug_options);
         document.getElementById("config_debug_collisions").checked = config.debug.collisions;
@@ -428,7 +401,6 @@ Tools.setupDebug = function() {
         document.getElementById("config_debug_hide_texture_forest").checked = config.debug.hide_texture_forest;
         document.getElementById("config_debug_hide_mask_map").checked = config.debug.hide_mask_map;
         document.getElementById("config_debug_log_packets").checked = config.debug.log_packets;
-        document.getElementById("config_debug_mock_server").checked = config.debug.mock_server;
         UI.show("#debug_options");
     }
 };

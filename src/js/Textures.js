@@ -469,12 +469,12 @@ var textureByName = {
         layer: "shadows",
         anchor: [3 / 32, 23 / 32]
     },
-    shipRaptor: {
+    ship_raptor: {
         texture: "raptor",
         layer: "aircraft",
         anchor: [0.5, 0.6]
     },
-    shipRaptorShadow: {
+    ship_shadow_raptor: {
         texture: "raptor_shadow",
         layer: "shadows",
         anchor: [0.5, 0.57]
@@ -485,12 +485,12 @@ var textureByName = {
         anchor: [0.5, 0.1],
         scale: [0.25, 0.25]
     },
-    shipSpirit: {
+    ship_spirit: {
         texture: "spirit",
         layer: "aircraft",
         anchor: [0.5, 0.5]
     },
-    shipSpiritShadow: {
+    ship_shadow_spirit: {
         texture: "spirit_shadow",
         layer: "shadows",
         anchor: [0.5, 0.5]
@@ -501,12 +501,12 @@ var textureByName = {
         anchor: [0.5, 0.1],
         scale: [0.25, 0.25]
     },
-    shipComanche: {
+    ship_mohawk: {
         texture: "comanche",
         layer: "aircraft",
         anchor: [0.5, 0.4]
     },
-    shipComancheShadow: {
+    ship_shadow_mohawk: {
         texture: "comanche_shadow",
         layer: "shadows",
         anchor: [0.5, 0.43]
@@ -522,22 +522,22 @@ var textureByName = {
         layer: "shadows",
         anchor: [0.5, 0.5]
     },
-    shipTornado: {
+    ship_tornado: {
         texture: "tornado",
         layer: "aircraft",
         anchor: [0.5, 0.65]
     },
-    shipTornadoShadow: {
+    ship_shadow_tornado: {
         texture: "tornado_shadow",
         layer: "shadows",
         anchor: [0.5, 0.605]
     },
-    shipProwler: {
+    ship_prowler: {
         texture: "prowler",
         layer: "aircraft",
         anchor: [0.5, 0.5]
     },
-    shipProwlerShadow: {
+    ship_shadow_prowler: {
         texture: "prowler_shadow",
         layer: "shadows",
         anchor: [0.5, 0.5]
@@ -618,12 +618,33 @@ Textures.tile = function(name, t, n) {
     return new PIXI.extras.TilingSprite(pixiImageByName[name], t, n)
 };
 
-Textures.add = function(name, path) {
-    imageUrlByName[name] = path;
+Textures.add = function(name, url, base_texture, frame) {
+    if (base_texture && frame)
+        spriteByName[name] = [base_texture, frame];
+    else
+        imageUrlByName[name] = url;
     Textures.load();
 };
 
 Textures.delete = function(name) {
     delete imageUrlByName[name];
     delete pixiImageByName[name];
+};
+
+Textures.add_ship_template = function(name, texture_name, anchor) {
+    textureByName[`ship_${name}`] = {
+        texture: texture_name,
+        layer: "aircraft",
+        anchor
+    };
+
+    textureByName[`ship_shadow_${name}`] = {
+        texture: `${texture_name}_shadow`,
+        layer: "shadows",
+        anchor
+    };
+}
+
+Textures.debug = function() {
+    console.log(textureByName, imageUrlByName, spriteByName);
 };

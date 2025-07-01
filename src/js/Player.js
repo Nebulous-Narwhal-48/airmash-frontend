@@ -1,6 +1,5 @@
 import Vector from './Vector.js';
 
-
 class Player {
     constructor(playerNewMsg, isFromLoginPacket) {
         this.id = playerNewMsg.id;
@@ -50,6 +49,7 @@ class Player {
         this.state = {
           thrustLevel : 0,
           thrustDir : 0,
+          rotorDir: 0,
           bubble : false,
           bubbleProgress : 0,
           bubbleFade : 0,
@@ -96,6 +96,7 @@ class Player {
       }
 
     setupGraphics(isPlaneTypeChange) {
+        if (!config.ships[this.type]) return;
         var propOverrides = null;
         if(this.me()) {
             propOverrides = {
@@ -110,83 +111,29 @@ class Player {
             visible: false,
             alpha: .75
         });
+        
 
-        switch(this.type) {
-        case PlaneType.Predator:
-            this.state.baseScale = .25;
-            this.state.nameplateDist = 60;
-            this.sprites.sprite = Textures.init("shipRaptor", propOverrides);
-            if (this.skin)
-                this.changeSkin(this.skin.url, this.skin.hash);
-            this.sprites.shadow = Textures.init("shipRaptorShadow", {
-                scale: this.state.baseScale * (2.4 / config.shadowScaling)
-            });
-            this.sprites.thruster = Textures.init("shipRaptorThruster");
-            this.sprites.thrusterGlow = Textures.init("thrusterGlowSmall");
-            this.sprites.thrusterShadow = Textures.init("thrusterShadow");
-            break;
-        case PlaneType.Goliath:
-            this.state.baseScale = .35;
-            this.state.nameplateDist = 60;
-            this.sprites.sprite = Textures.init("shipSpirit", propOverrides);
-            if (this.skin)
-                this.changeSkin(this.skin.url, this.skin.hash);
-            this.sprites.shadow = Textures.init("shipSpiritShadow", {
-                scale: this.state.baseScale * (2.4 / config.shadowScaling)
-            });
-            this.sprites.thruster1 = Textures.init("shipRaptorThruster");
-            this.sprites.thruster2 = Textures.init("shipRaptorThruster");
-            this.sprites.thruster1Glow = Textures.init("thrusterGlowSmall");
-            this.sprites.thruster2Glow = Textures.init("thrusterGlowSmall");
-            this.sprites.thruster1Shadow = Textures.init("thrusterShadow");
-            this.sprites.thruster2Shadow = Textures.init("thrusterShadow");
-            break;
-        case PlaneType.Mohawk:
-            this.state.baseScale = .25;
-            this.state.nameplateDist = 60;
-            this.sprites.sprite = Textures.init("shipComanche", propOverrides);
-            if (this.skin)
-                this.changeSkin(this.skin.url, this.skin.hash);
-            this.sprites.rotor = Textures.init("shipComancheRotor", propOverrides);
-            this.sprites.shadow = Textures.init("shipComancheShadow", {
-                scale: this.state.baseScale * (2.4 / config.shadowScaling)
-            });
-            this.sprites.rotorShadow = Textures.init("shipComancheRotorShadow", {
-                scale: 2 * this.state.baseScale * (2.4 / config.shadowScaling)
-            });
-            break;
-        case PlaneType.Tornado:
-            this.state.baseScale = .28;
-            this.state.nameplateDist = 60;
-            this.sprites.sprite = Textures.init("shipTornado", propOverrides);
-            if (this.skin)
-                this.changeSkin(this.skin.url, this.skin.hash);
-            this.sprites.shadow = Textures.init("shipTornadoShadow", {
-                scale: this.state.baseScale * (2.4 / config.shadowScaling)
-            });
-            this.sprites.thruster1 = Textures.init("shipRaptorThruster");
-            this.sprites.thruster2 = Textures.init("shipRaptorThruster");
-            this.sprites.thruster1Glow = Textures.init("thrusterGlowSmall");
-            this.sprites.thruster2Glow = Textures.init("thrusterGlowSmall");
-            this.sprites.thruster1Shadow = Textures.init("thrusterShadow");
-            this.sprites.thruster2Shadow = Textures.init("thrusterShadow");
-            break;
-        case PlaneType.Prowler:
-            this.state.baseScale = .28;
-            this.state.nameplateDist = 60;
-            this.sprites.sprite = Textures.init("shipProwler", propOverrides);
-            if (this.skin)
-                this.changeSkin(this.skin.url, this.skin.hash);
-            this.sprites.shadow = Textures.init("shipProwlerShadow", {
-                scale: this.state.baseScale * (2.4 / config.shadowScaling)
-            });
-            this.sprites.thruster1 = Textures.init("shipRaptorThruster");
-            this.sprites.thruster2 = Textures.init("shipRaptorThruster");
-            this.sprites.thruster1Glow = Textures.init("thrusterGlowSmall");
-            this.sprites.thruster2Glow = Textures.init("thrusterGlowSmall");
-            this.sprites.thruster1Shadow = Textures.init("thrusterShadow");
-            this.sprites.thruster2Shadow = Textures.init("thrusterShadow");
+        const {name, graphics:{baseScale, thrusters, rotors}} = config.ships[this.type];
+        this.state.baseScale = baseScale;
+        this.state.nameplateDist = 60;
+        this.sprites.sprite = Textures.init(`ship_${name}`, propOverrides);
+        if (this.skin)
+            this.changeSkin(this.skin.url, this.skin.hash);
+        this.sprites.shadow = Textures.init(`ship_shadow_${name}`, {
+            scale: baseScale * (2.4 / config.shadowScaling)
+        });
+        for (let i=0; i<thrusters.length; i++) {
+            this.sprites[`thruster${i}`] = Textures.init("shipRaptorThruster");
+            this.sprites[`thruster${i}Glow`] = Textures.init("thrusterGlowSmall");
+            this.sprites[`thruster${i}Shadow`] = Textures.init("thrusterShadow");
         }
+        for (let i=0; i<rotors.length; i++) {
+            this.sprites[`rotor${i}`] = Textures.init("shipComancheRotor", propOverrides);
+            this.sprites[`rotor${i}Shadow`] = Textures.init("shipComancheRotorShadow", {
+                scale: 2 * baseScale * (2.4 / config.shadowScaling)
+            });
+        }
+        
         if(! (this.reel || isPlaneTypeChange)) {
             this.setupNameplate();
             this.setupChatBubbles();
@@ -197,8 +144,16 @@ class Player {
         this.updateDebug();
     }
 
+    reloadGraphics() {
+        this.destroy();
+        this.setupGraphics(true);
+        this.sprites.powerup.visible = false;
+        this.sprites.powerupCircle.visible = false;
+    }
+
     updateDebug() {
         if (!window.DEVELOPMENT) return;
+        if (!config.ships[this.type]) return;
         if(config.debug.collisions) {
             if (!this.col) {
                 this.col = new PIXI.Graphics;
@@ -216,17 +171,14 @@ class Player {
                 this.col = null;
             }
         }
+        const {graphics:{thrusters, rotors}} = config.ships[this.type];
         this.sprites.sprite.visible = !config.debug.hide_texture_player;
         this.sprites.shadow.visible = !config.debug.hide_texture_player;
-        this.sprites.thruster && (this.sprites.thruster.visible = !config.debug.hide_texture_thruster);
-        this.sprites.thrusterGlow && (this.sprites.thrusterGlow.visible = !config.debug.hide_texture_thruster);
-        this.sprites.thrusterShadow && (this.sprites.thrusterShadow.visible = !config.debug.hide_texture_thruster);
-        this.sprites.thruster1 && (this.sprites.thruster1.visible = !config.debug.hide_texture_thruster);
-        this.sprites.thruster2 && (this.sprites.thruster2.visible = !config.debug.hide_texture_thruster);
-        this.sprites.thruster1Glow && (this.sprites.thruster1Glow.visible = !config.debug.hide_texture_thruster);
-        this.sprites.thruster2Glow && (this.sprites.thruster2Glow.visible = !config.debug.hide_texture_thruster);
-        this.sprites.thruster1Shadow && (this.sprites.thruster1Shadow.visible = !config.debug.hide_texture_thruster);
-        this.sprites.thruster2Shadow && (this.sprites.thruster2Shadow.visible = !config.debug.hide_texture_thruster);
+        for (let i=0; i< thrusters.length; i++) {
+            this.sprites[`thruster${i}`] && (this.sprites[`thruster${i}`].visible = !config.debug.hide_texture_thruster);
+            this.sprites[`thruster${i}Glow`] && (this.sprites[`thruster${i}Glow`].visible = !config.debug.hide_texture_thruster);
+            this.sprites[`thruster${i}Shadow`] && (this.sprites[`thruster${i}Shadow`].visible = !config.debug.hide_texture_thruster);    
+        }
     }
 
     reteam(e) {
@@ -310,6 +262,7 @@ class Player {
     }
 
     visibilityUpdate(force) {
+        if (!this.sprites.sprite) return;
         this.culled = !Graphics.inScreen(this.pos, 128);
         var isVisible = !(this.hidden || this.culled || this.timedout);
 
@@ -328,25 +281,15 @@ class Player {
             this.sprites.powerup.visible = this.powerupActive && isVisible;
             this.sprites.powerupCircle.visible = this.powerupActive && isVisible;
 
-            switch (this.type) {
-            case PlaneType.Predator:
-                this.sprites.thruster.visible = isVisible && !config.debug.hide_texture_thruster;
-                this.sprites.thrusterGlow.visible = isVisible && !config.debug.hide_texture_thruster;
-                this.sprites.thrusterShadow.visible = isVisible && !config.debug.hide_texture_thruster;
-                break;
-            case PlaneType.Goliath:
-            case PlaneType.Tornado:
-            case PlaneType.Prowler:
-                this.sprites.thruster1.visible = isVisible && !config.debug.hide_texture_thruster;
-                this.sprites.thruster1Glow.visible = isVisible && !config.debug.hide_texture_thruster;
-                this.sprites.thruster1Shadow.visible = isVisible && !config.debug.hide_texture_thruster;
-                this.sprites.thruster2.visible = isVisible && !config.debug.hide_texture_thruster;
-                this.sprites.thruster2Glow.visible = isVisible && !config.debug.hide_texture_thruster;
-                this.sprites.thruster2Shadow.visible = isVisible && !config.debug.hide_texture_thruster;
-                break;
-            case PlaneType.Mohawk:
-                this.sprites.rotor.visible = isVisible;
-                this.sprites.rotorShadow.visible = isVisible;
+            const {thrusters, rotors} = config.ships[this.type].graphics || {thrusters:[], rotors:[]};
+            for (let i=0; i<thrusters.length; i++) {
+                this.sprites[`thruster${i}`].visible = isVisible && !config.debug.hide_texture_thruster;
+                this.sprites[`thruster${i}Glow`].visible = isVisible && !config.debug.hide_texture_thruster;
+                this.sprites[`thruster${i}Shadow`].visible = isVisible && !config.debug.hide_texture_thruster;                
+            }
+            for (let i=0; i<rotors.length; i++) {
+                this.sprites[`rotor${i}`].visible = isVisible;
+                this.sprites[`rotor${i}Shadow`].visible = isVisible;
             }
 
             this.render = isVisible;
@@ -398,11 +341,12 @@ class Player {
             this.sprites.levelBorder.alpha = .4 * alpha;
         }
 
-        if(PlaneType.Prowler == this.type) {
-            this.sprites.thruster1.alpha = alpha;
-            this.sprites.thruster1Glow.alpha = alpha;
-            this.sprites.thruster2.alpha = alpha;
-            this.sprites.thruster2Glow.alpha = alpha;
+        if (config.ships[this.type]?.special === 5) {
+            const {thrusters} = config.ships[this.type].graphics;
+            for (let i=0; i<thrusters.length; i++) {
+                this.sprites[`thruster${i}`].alpha = alpha;
+                this.sprites[`thruster${i}Glow`].alpha = alpha;
+            }
         }
     }
 
@@ -427,19 +371,8 @@ class Player {
             this.lastKilled = performance.now();
 
             if (!this.culled) {
-                switch (this.type) {
-                    case PlaneType.Predator:
-                        Particles.explosion(this.pos.clone(), Tools.rand(1.5, 2), Tools.randInt(2, 3));
-                        break;
-                    case PlaneType.Goliath:
-                        Particles.explosion(this.pos.clone(), Tools.rand(2, 2.5), Tools.randInt(4, 7));
-                        break;
-                    case PlaneType.Mohawk:
-                    case PlaneType.Tornado:
-                    case PlaneType.Prowler:
-                        Particles.explosion(this.pos.clone(), Tools.rand(1.5, 2), Tools.randInt(2, 3));
-                        break;
-                }
+                const {explosion} = config.ships[this.type].graphics;
+                Particles.explosion(this.pos.clone(), Tools.rand(explosion.params[0], explosion.params[1]), Tools.randInt(explosion.params[2], explosion.params[3]));
                 Graphics.shakeCamera(this.pos, this.me() ? 20 : 10),
                 Sound.clearThruster(this.id),
                 Sound.playerKill(this)
@@ -456,6 +389,8 @@ class Player {
             // this will destroy the team if only one member remains
             this.reteam();
         }
+
+        if (!this.sprites.sprite) return;
         
         var layer = this.me() ? game.graphics.layers.aircraftme : game.graphics.layers.aircraft;
 
@@ -472,31 +407,21 @@ class Player {
         this.sprites.powerup.destroy();
         this.sprites.powerupCircle.destroy();
 
-        switch (this.type) {
-        case PlaneType.Predator:
-            game.graphics.layers.thrusters.removeChild(this.sprites.thruster),
-            game.graphics.layers.thrusters.removeChild(this.sprites.thrusterGlow),
-            this.sprites.thruster.destroy(),
-            this.sprites.thrusterGlow.destroy(),
-            this.sprites.thrusterShadow.destroy();
-            break;
-        case PlaneType.Goliath:
-        case PlaneType.Tornado:
-        case PlaneType.Prowler:
-            game.graphics.layers.thrusters.removeChild(this.sprites.thruster1, this.sprites.thruster2),
-            game.graphics.layers.thrusters.removeChild(this.sprites.thruster1Glow, this.sprites.thruster2Glow),
-            this.sprites.thruster1.destroy(),
-            this.sprites.thruster2.destroy(),
-            this.sprites.thruster1Glow.destroy(),
-            this.sprites.thruster2Glow.destroy(),
-            this.sprites.thruster1Shadow.destroy(),
-            this.sprites.thruster2Shadow.destroy();
-            break;
-        case PlaneType.Mohawk:
-            layer.removeChild(this.sprites.rotor),
-            this.sprites.rotor.destroy(),
-            game.graphics.layers.shadows.removeChild(this.sprites.rotorShadow),
-            this.sprites.rotorShadow.destroy()
+        for (let i=0; i<Infinity; i++) {
+            if (!this.sprites[`thruster${i}`]) break;
+            game.graphics.layers.thrusters.removeChild(this.sprites[`thruster${i}`]);
+            game.graphics.layers.thrusters.removeChild(this.sprites[`thruster${i}Glow`]);
+            game.graphics.layers.shadows.removeChild(this.sprites[`thruster${i}Shadow`]);
+            this.sprites[`thruster${i}`]?.destroy();
+            this.sprites[`thruster${i}Glow`]?.destroy();
+            this.sprites[`thruster${i}Shadow`]?.destroy();
+        }
+        for (let i=0; i<Infinity; i++) {
+            if (!this.sprites[`rotor${i}`]) break;
+            layer.removeChild(this.sprites[`rotor${i}`]);
+            this.sprites[`rotor${i}`]?.destroy();
+            game.graphics.layers.shadows.removeChild(this.sprites[`rotor${i}Shadow`]);
+            this.sprites[`rotor${i}Shadow`]?.destroy();
         }
 
         if(maybeFullDestroy && !this.reel) {
@@ -582,7 +507,7 @@ class Player {
         if (!(this.me() || !n || this.stealthed)) {
             this.unstealth();
         }
-        if (updateMsg.c == Network.SERVERPACKET.EVENT_BOUNCE && game.time - this.state.lastBounceSound > 300) {
+        if (updateMsg.c == Network.SERVERPACKET.EVENT_BOUNCE && game.time - this.state.lastBounceSound > 300 && config.ships[this.type]) {
             this.state.lastBounceSound = game.time;
             Sound.playerImpact(this.pos, this.type, this.speed.length() / config.ships[this.type].maxSpeed);
         }
@@ -639,15 +564,16 @@ class Player {
     }
 
     updatePowerups() {
+        if (!this.sprites.powerup) return;
         var e = false;
         this.powerups.shield != this.powerupsShown.shield && (this.powerupsShown.shield = this.powerups.shield,
         this.powerups.shield && (this.sprites.powerup.texture = Textures.get("powerup_shield"),
         this.sprites.powerupCircle.tint = 16777215),
-        e = true),
+        e = true);
         this.powerups.rampage != this.powerupsShown.rampage && (this.powerupsShown.rampage = this.powerups.rampage,
         this.powerups.rampage && (this.sprites.powerup.texture = Textures.get("powerup_rampage"),
         this.sprites.powerupCircle.tint = 16712448),
-        e = true),
+        e = true);
         e && (this.powerupActive = this.powerups.shield || this.powerups.rampage,
         this.powerupActive ? (this.state.powerupFade = 0,
         this.state.powerupFadeState = 0,
@@ -691,6 +617,7 @@ class Player {
         this.flagspeed = false,
         this.state.thrustLevel = 0,
         this.state.thrustDir = 0,
+        this.state.rotorDir = 0,
         this.hidden = false,
         this.timedout = false,
         this.visibilityUpdate();
@@ -778,13 +705,14 @@ class Player {
     }
 
     static async load_skin(aircraft, url, hash) {
-        const sizes = {
-            [PlaneType.Predator]: {w: 256, h: 256},
-            [PlaneType.Goliath]: {w: 512, h: 256},
-            [PlaneType.Mohawk]: {w: 128, h: 256},
-            [PlaneType.Tornado]: {w: 256, h: 256},
-            [PlaneType.Prowler]: {w: 256, h: 256},
-        };
+        // const sizes = {
+        //     [PlaneType.Predator]: {w: 256, h: 256},
+        //     [PlaneType.Goliath]: {w: 512, h: 256},
+        //     [PlaneType.Mohawk]: {w: 128, h: 256},
+        //     [PlaneType.Tornado]: {w: 256, h: 256},
+        //     [PlaneType.Prowler]: {w: 256, h: 256},
+        // };
+        const size = config.ships[aircraft].graphics.size;
     
         const cache_key = url;
         let cache = await caches.open('skin_cache');
@@ -792,7 +720,7 @@ class Player {
         if (res) {
             const {dataURL, w, h} = await res.json();
     
-            if (w !== sizes[aircraft].w || h !== sizes[aircraft].h) {
+            if (w !== size.w || h !== size.h) {
                 return;
             }
     
@@ -810,14 +738,14 @@ class Player {
                 return;
             }
 
-            if (byteLength > config.skins.MAX_IMG_BYTES[w]) {
+            if (byteLength > (config.skins.MAX_IMG_BYTES[w]||0)) {
                 console.error(`Image too big: ${byteLength} > ${config.skins.MAX_IMG_BYTES[w]}`);
                 return;
             }
 
             await cache.put(cache_key, new Response(JSON.stringify({dataURL, w, h})));
     
-            if (w !== sizes[aircraft].w || h !== sizes[aircraft].h) {
+            if (w !== size.w || h !== size.h) {
                 return;
             }
     
@@ -825,10 +753,10 @@ class Player {
         }
     }
 
-    // called by Network handleCustomMessage after receiving SERVER_CUSTOM packet
     async changeSkin(url, hash) {
         const player = this;
         player.skin = {url, hash};
+        if (!config.ships[player.type] || !player.sprites.sprite) return;
         const dataURL = await Player.load_skin(player.type, url, hash);
         if (!dataURL)
             return;
@@ -838,9 +766,8 @@ class Player {
         
         const texture = new PIXI.Texture.fromImage(dataURL);
         let sprite = new PIXI.Sprite(texture);
-        sprite.anchor.set(0.5, 0.6);
-        let container = layer; //game.graphics.layers.aircraftme;
-        container.addChild(sprite);
+        sprite.anchor.set(...config.ships[player.type].graphics.anchor);
+        layer.addChild(sprite);
         player.sprites.sprite = sprite;
     }
 
@@ -919,6 +846,11 @@ class Player {
             }
             return;
         }
+
+        if (!config.ships[this.type]) 
+            return;
+        else if (!this.sprites.sprite) 
+            this.setupGraphics();
 
         if (!(false !== this.reducedFactor && (timeFrac = timeFrac - this.reducedFactor, this.reducedFactor = false, timeFrac <= 0))) {
             var roundedFrames = timeFrac > .51 ? Math.round(timeFrac) : 1;
@@ -1033,24 +965,23 @@ class Player {
     }
 
     clientCalcs(timeFrac) {
-        switch(this.type) {
-            case PlaneType.Predator:
-            case PlaneType.Goliath:
-            case PlaneType.Tornado:
-            case PlaneType.Prowler:
-                var scrollviewTransform = false;
-                var angleToDraw = false;
-                var t = this.boost ? 1.5 : 1;
-                if (false !== (scrollviewTransform = this.keystate.LEFT ? .3 : this.keystate.RIGHT ? -.3 : 0)) {
-                    this.state.thrustDir = Tools.converge(this.state.thrustDir, scrollviewTransform, .1 * timeFrac);
-                }
-                if (false !== (angleToDraw = this.keystate.UP ? 1 : this.keystate.DOWN ? -1 : 0)) {
-                    this.state.thrustLevel = Tools.converge(this.state.thrustLevel, angleToDraw * t, .2 * timeFrac);
-                }
-                break;
-            case PlaneType.Mohawk:
-                this.state.thrustDir += (.2 + this.speed.length() / 50) * timeFrac;
+        const {graphics:{thrusters, rotors}, special} = config.ships[this.type] || {graphics:{thrusters:[], rotors:[]}, special:0};
+        if (thrusters.length) {
+            var scrollviewTransform = false;
+            var angleToDraw = false;
+            var t = this.boost ? 1.5 : 1;
+            if (false !== (scrollviewTransform = this.keystate.LEFT ? .3 : this.keystate.RIGHT ? -.3 : 0)) {
+                this.state.thrustDir = Tools.converge(this.state.thrustDir, scrollviewTransform, .1 * timeFrac);
+            }
+            if (false !== (angleToDraw = this.keystate.UP ? 1 : this.keystate.DOWN ? -1 : 0)) {
+                this.state.thrustLevel = Tools.converge(this.state.thrustLevel, angleToDraw * t, .2 * timeFrac);
+            }
+
+        } 
+        if (rotors.length) {
+            this.state.rotorDir += (.2 + this.speed.length() / 50) * timeFrac;
         }
+
         if (!this.culled) {
             if (this.render) {
                 if (!this.stealthed && this.health < .4) {
@@ -1062,7 +993,8 @@ class Player {
                 if (this.boost) {
                     Particles.planeBoost(this, angleToDraw >= 0);
                 }
-                if (PlaneType.Prowler == this.type && this.stealthed) {
+                if (special === 5 && this.stealthed) {
+                //if (PlaneType.Prowler == this.type && this.stealthed) {
                     this.state.stealthLevel += .03 * timeFrac;
                     this.state.stealthLevel = Tools.clamp(this.state.stealthLevel, 0, this.team == game.myTeam ? .5 : 1);
                     this.opacity(1 - this.state.stealthLevel);
@@ -1095,12 +1027,14 @@ class Player {
     }
 
     updateGraphics(e) {
+        if (!this.sprites.sprite) return;
+
         var t = Tools.oscillator(0.025, 1e3, this.randomness) * this.scale,
             n = 1.5 * this.state.thrustLevel,
             r = this.rot,
-            i = Graphics.shadowCoords(this.pos);
+            shadow_pos = Graphics.shadowCoords(this.pos);
         if (Graphics.transform(this.sprites.sprite, this.pos.x, this.pos.y, r, t * this.state.baseScale, t * this.state.baseScale),
-        Graphics.transform(this.sprites.shadow, i.x, i.y, r, this.state.baseScale * (2.4 / config.shadowScaling) * this.scale, this.state.baseScale * (2.4 / config.shadowScaling) * this.scale),
+        Graphics.transform(this.sprites.shadow, shadow_pos.x, shadow_pos.y, r, this.state.baseScale * (2.4 / config.shadowScaling) * this.scale, this.state.baseScale * (2.4 / config.shadowScaling) * this.scale),
         this.powerupActive) {
             var o = .35 * (0 == this.state.powerupFadeState ? 2 * (1 - this.state.powerupFade) + 1 : 1 - this.state.powerupFade) * Tools.oscillator(.075, 100, this.randomness),
                 s = .75 * (0 == this.state.powerupFadeState ? Tools.clamp(2 * this.state.powerupFade, 0, 1) : Tools.clamp(1 - 1.3 * this.state.powerupFade, 0, 1)) * this.alpha;
@@ -1110,43 +1044,56 @@ class Player {
         var a = Tools.oscillator(.1, .5, this.randomness),
             l = Math.abs(this.state.thrustLevel) < .01 ? 0 : this.state.thrustLevel / 2 + (this.state.thrustLevel > 0 ? .5 : -.5),
             u = Tools.clamp(2 * Math.abs(this.state.thrustLevel) - .1, 0, 1);
-        switch (this.type) {
-        case PlaneType.Predator:
-            Graphics.transform(this.sprites.thruster, this.pos.x + Math.sin(-r) * (20 * t), this.pos.y + Math.cos(-r) * (20 * t), r + (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .3 * a * l * this.scale, .5 * a * l * this.scale, u),
-            Graphics.transform(this.sprites.thrusterShadow, i.x + Math.sin(-r) * (20 * t) / config.shadowScaling, i.y + Math.cos(-r) * (20 * t) / config.shadowScaling, r + (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .4 * a * l * this.scale * (4 / config.shadowScaling), .5 * a * l * this.scale * (4 / config.shadowScaling), u / 2.5),
-            Graphics.transform(this.sprites.thrusterGlow, this.pos.x + Math.sin(-r - .5 * this.state.thrustDir) * (40 * t), this.pos.y + Math.cos(-r - .5 * this.state.thrustDir) * (40 * t), null, 1.5 * n * this.scale, 1 * n * this.scale, .3 * this.state.thrustLevel);
-            break;
-        case PlaneType.Goliath:
-            this.state.thrustLevel < 0 && (a *= .7),
-            Graphics.transform(this.sprites.thruster1, this.pos.x + Math.sin(-r - .5) * (32 * t), this.pos.y + Math.cos(-r - .5) * (32 * t), r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .4 * a * l * this.scale, .6 * a * l * this.scale, u),
-            Graphics.transform(this.sprites.thruster2, this.pos.x + Math.sin(.5 - r) * (32 * t), this.pos.y + Math.cos(.5 - r) * (32 * t), r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .4 * a * l * this.scale, .6 * a * l * this.scale, u),
-            Graphics.transform(this.sprites.thruster1Shadow, i.x + Math.sin(-r - .5) * (32 * t) / config.shadowScaling, i.y + Math.cos(-r - .5) * (32 * t) / config.shadowScaling, r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .5 * a * l * this.scale * (4 / config.shadowScaling), .6 * a * l * this.scale * (4 / config.shadowScaling), u / 2.5),
-            Graphics.transform(this.sprites.thruster2Shadow, i.x + Math.sin(.5 - r) * (32 * t) / config.shadowScaling, i.y + Math.cos(.5 - r) * (32 * t) / config.shadowScaling, r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .5 * a * l * this.scale * (4 / config.shadowScaling), .6 * a * l * this.scale * (4 / config.shadowScaling), u / 2.5),
-            Graphics.transform(this.sprites.thruster1Glow, this.pos.x + Math.sin(-r - .3) * (50 * t), this.pos.y + Math.cos(-r - .3) * (50 * t), null, 2.5 * this.scale, 1.5 * this.scale, .3 * this.state.thrustLevel),
-            Graphics.transform(this.sprites.thruster2Glow, this.pos.x + Math.sin(.3 - r) * (50 * t), this.pos.y + Math.cos(.3 - r) * (50 * t), null, 2.5 * this.scale, 1.5 * this.scale, .3 * this.state.thrustLevel);
-            break;
-        case PlaneType.Mohawk:
-            Graphics.transform(this.sprites.rotor, this.pos.x, this.pos.y, this.state.thrustDir, t * this.state.baseScale * 2, t * this.state.baseScale * 2, .8),
-            Graphics.transform(this.sprites.rotorShadow, i.x, i.y, this.state.thrustDir, this.state.baseScale * (2.4 / config.shadowScaling) * this.scale * 2, this.state.baseScale * (2.4 / config.shadowScaling) * this.scale * 2);
-            break;
-        case PlaneType.Tornado:
-            this.state.thrustLevel < 0 && (a *= .7),
-            Graphics.transform(this.sprites.thruster1, this.pos.x + Math.sin(-r - .15) * (28 * t), this.pos.y + Math.cos(-r - .15) * (28 * t), r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .3 * a * l * this.scale, .5 * a * l * this.scale, u),
-            Graphics.transform(this.sprites.thruster2, this.pos.x + Math.sin(.15 - r) * (28 * t), this.pos.y + Math.cos(.15 - r) * (28 * t), r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .3 * a * l * this.scale, .5 * a * l * this.scale, u),
-            Graphics.transform(this.sprites.thruster1Shadow, i.x + Math.sin(-r - .15) * (28 * t) / config.shadowScaling, i.y + Math.cos(-r - .15) * (28 * t) / config.shadowScaling, r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .3 * a * l * this.scale * (4 / config.shadowScaling), .5 * a * l * this.scale * (4 / config.shadowScaling), u / 2.5),
-            Graphics.transform(this.sprites.thruster2Shadow, i.x + Math.sin(.15 - r) * (28 * t) / config.shadowScaling, i.y + Math.cos(.15 - r) * (28 * t) / config.shadowScaling, r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .3 * a * l * this.scale * (4 / config.shadowScaling), .5 * a * l * this.scale * (4 / config.shadowScaling), u / 2.5),
-            Graphics.transform(this.sprites.thruster1Glow, this.pos.x + Math.sin(-r - .2) * (45 * t), this.pos.y + Math.cos(-r - .2) * (45 * t), null, 2.5 * this.scale, 1.5 * this.scale, .25 * this.state.thrustLevel),
-            Graphics.transform(this.sprites.thruster2Glow, this.pos.x + Math.sin(.2 - r) * (45 * t), this.pos.y + Math.cos(.2 - r) * (45 * t), null, 2.5 * this.scale, 1.5 * this.scale, .25 * this.state.thrustLevel);
-            break;
-        case PlaneType.Prowler:
-            this.state.thrustLevel < 0 && (a *= .7),
-            Graphics.transform(this.sprites.thruster1, this.pos.x + Math.sin(-r - .35) * (20 * t), this.pos.y + Math.cos(-r - .35) * (20 * t), r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .3 * a * l * this.scale, .4 * a * l * this.scale, u * this.alpha),
-            Graphics.transform(this.sprites.thruster2, this.pos.x + Math.sin(.35 - r) * (20 * t), this.pos.y + Math.cos(.35 - r) * (20 * t), r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .3 * a * l * this.scale, .4 * a * l * this.scale, u * this.alpha),
-            Graphics.transform(this.sprites.thruster1Shadow, i.x + Math.sin(-r - .35) * (20 * t) / config.shadowScaling, i.y + Math.cos(-r - .35) * (20 * t) / config.shadowScaling, r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .4 * a * l * this.scale * (4 / config.shadowScaling), .4 * a * l * this.scale * (4 / config.shadowScaling), u * this.alpha / 2.5),
-            Graphics.transform(this.sprites.thruster2Shadow, i.x + Math.sin(.35 - r) * (20 * t) / config.shadowScaling, i.y + Math.cos(.35 - r) * (20 * t) / config.shadowScaling, r + .5 * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), .4 * a * l * this.scale * (4 / config.shadowScaling), .4 * a * l * this.scale * (4 / config.shadowScaling), u * this.alpha / 2.5),
-            Graphics.transform(this.sprites.thruster1Glow, this.pos.x + Math.sin(-r - .2 - 0 * this.state.thrustDir) * (35 * t), this.pos.y + Math.cos(-r - .2 - 0 * this.state.thrustDir) * (35 * t), null, 2.5 * this.scale, 1.5 * this.scale, .2 * this.state.thrustLevel * this.alpha),
-            Graphics.transform(this.sprites.thruster2Glow, this.pos.x + Math.sin(.2 - r - 0 * this.state.thrustDir) * (35 * t), this.pos.y + Math.cos(.2 - r - 0 * this.state.thrustDir) * (35 * t), null, 2.5 * this.scale, 1.5 * this.scale, .2 * this.state.thrustLevel * this.alpha)
+
+        //if (config.ships[this.type]) {  is always true if this.sprites.sprite
+        {
+            const {graphics:{thrusters, rotors}, special} = config.ships[this.type];
+            thrusters.length > 1 && this.state.thrustLevel < 0 && (a *= .7);
+            for (let i=0; i<thrusters.length; i++) {
+                const {pos_angle, pos_radius, rot_factor, scale_x, scale_y, glow_pos_angle1, glow_pos_angle2, glow_pos_radius, glow_scale_x, glow_scale_y, glow_alpha_factor} = thrusters[i];
+                const params = [pos_angle, pos_radius, rot_factor, scale_x, scale_y, glow_pos_angle1, glow_pos_angle2, glow_pos_radius, glow_scale_x, glow_scale_y, glow_alpha_factor];
+                Graphics.transform(this.sprites[`thruster${i}`], 
+                    this.pos.x + Math.sin(-r - params[0]) * (params[1] * t), 
+                    this.pos.y + Math.cos(-r - params[0]) * (params[1] * t), 
+                    r + params[2] * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), 
+                    params[3] * a * l * this.scale, 
+                    params[4] * a * l * this.scale, 
+                    u * (special===5?this.alpha:1));
+                Graphics.transform(this.sprites[`thruster${i}Shadow`],
+                    shadow_pos.x + Math.sin(-r - params[0]) * (params[1] * t) / config.shadowScaling, 
+                    shadow_pos.y + Math.cos(-r - params[0]) * (params[1] * t) / config.shadowScaling, 
+                    r + params[2] * (this.state.thrustLevel > 0 ? this.state.thrustDir : 0), 
+                    (params[3]+0.1) * a * l * this.scale * (4 / config.shadowScaling), 
+                    params[4] * a * l * this.scale * (4 / config.shadowScaling), 
+                    u * (special===5?this.alpha:1) / 2.5);
+                Graphics.transform(this.sprites[`thruster${i}Glow`], 
+                    this.pos.x + Math.sin(-r + params[5] - params[6] * this.state.thrustDir) * (params[7] * t), 
+                    this.pos.y + Math.cos(-r + params[5] - params[6] * this.state.thrustDir) * (params[7] * t), 
+                    null, 
+                    params[8] * n * this.scale, 
+                    params[9] * n * this.scale, 
+                    params[10] * this.state.thrustLevel * (special===5?this.alpha:1));
+            }
+
+            for (let i=0; i<rotors.length; i++) {
+                const {scale, alpha, shadow_scale} = rotors[i];
+                const params = [scale, alpha, shadow_scale];
+                Graphics.transform(this.sprites[`rotor${i}`], 
+                    this.pos.x, 
+                    this.pos.y, 
+                    this.state.rotorDir, 
+                    t * this.state.baseScale * params[0], 
+                    t * this.state.baseScale * params[0], 
+                    params[1]);
+                Graphics.transform(this.sprites[`rotor${i}Shadow`], 
+                    shadow_pos.x, 
+                    shadow_pos.y, 
+                    this.state.rotorDir, 
+                    this.state.baseScale * (params[2] / config.shadowScaling) * this.scale * params[0], 
+                    this.state.baseScale * (params[2] / config.shadowScaling) * this.scale * params[0]);
+            }
         }
+        
         this.updateNameplate(),
         this.state.bubble && this.updateBubble(),
         config.debug.collisions && this.col && (this.col.position.set(this.pos.x, this.pos.y),

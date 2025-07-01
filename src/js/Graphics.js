@@ -1,4 +1,5 @@
 import Vector from './Vector.js';
+import { fetch_asset, MAP_ASSETS, PUBLIC_NAMESPACE, SHIP_ASSETS } from './editor.js';
 
 var renderer, cameraState = {
     position: Vector.zero(),
@@ -20,10 +21,10 @@ Graphics.setup = function() {
     setupPixiContainers(),
     initContainerScales(),
     initPixiTextures(),
-    initMapTextures(),
-    Graphics.replaceMap(),
+    Graphics.apply_bounds(game.server.config.mapBounds),
+    Graphics.load_assets({...game.server.config}),
     UI.setupHUD();
-    Graphics.updateDebug();
+    //Graphics.updateDebug();
 };
 
 var setupPixiRenderer = function() {
@@ -263,11 +264,10 @@ var modifyConfigIfMobile = function() {
     }
 };
 
-var initMapTextures = function() {
-    const mapId = game.server.config.mapId;
-    const overdrawWidth = renderer.width + config.overdraw,
-        overdrawHeight = renderer.height + config.overdraw;
+var initMapTextures = function({sea_mask, sand_mask, rock_mask}) {
     if (!pixiTextureByName.sea) {
+        const overdrawWidth = renderer.width + config.overdraw,
+            overdrawHeight = renderer.height + config.overdraw;
         pixiTextureByName.sea = Textures.tile("map_sea", overdrawWidth, overdrawHeight);
         pixiTextureByName.forest = Textures.tile("map_forest", overdrawWidth, overdrawHeight);
         pixiTextureByName.sand = Textures.tile("map_sand", overdrawWidth, overdrawHeight);
@@ -283,14 +283,14 @@ var initMapTextures = function() {
         pixiContainerByName.map.removeChild(pixiTextureByName.rock_mask);
         pixiContainerByName.map.removeChild(pixiTextureByName.sand_mask);
     }
-    pixiTextureByName.sea_mask = Textures.sprite(`${mapId}_map_sea_mask`);
+    pixiTextureByName.sea_mask = Textures.sprite(sea_mask);
     pixiTextureByName.sea_mask.scale.set(8, 8);
     pixiTextureByName.sea_mask.blendMode = PIXI.BLEND_MODES.MULTIPLY;
     pixiTextureByName.sea_mask.alpha = .5;
-    pixiTextureByName.sand_mask = Textures.sprite(`${mapId}_map_sand_mask`);
+    pixiTextureByName.sand_mask = Textures.sprite(sand_mask);
     pixiTextureByName.sand_mask.scale.set(8, 8);
     pixiTextureByName.sand.mask = pixiTextureByName.sand_mask;
-    pixiTextureByName.rock_mask = Textures.sprite(`${mapId}_map_rock_mask`);
+    pixiTextureByName.rock_mask = Textures.sprite(rock_mask);
     pixiTextureByName.rock_mask.scale.set(8, 8);
     pixiTextureByName.rock.mask = pixiTextureByName.rock_mask;
 
@@ -319,27 +319,8 @@ var initPolygonsScale = function() {
 };
 Graphics.initPolygonsScale = initPolygonsScale;
 
-Graphics.fetchMapJson = async function() {
-    const mapId = game.server.config.mapId;
-    const cache_key = `assets/maps/${mapId}/map.json`;
-    const cache = await caches.open('map_cache');
-    const res = await cache.match(cache_key);
-    if (res && !location.search.includes('nocache')) {
-        var {doodads, groundDoodads, walls, polygons, bounds, objects, extra} = await res.json();
-    } else {
-        console.log('fetching map', mapId);
-        var {doodads, groundDoodads, walls, polygons, bounds, objects, extra} = await fetch(`assets/maps/${mapId}/map.json`).then(res=>res.json());
-        await cache.put(cache_key, new Response(JSON.stringify({doodads, groundDoodads, walls, polygons, bounds, objects, extra})));
-    }
-    return {doodads, groundDoodads, walls, polygons, bounds, objects, extra};
-};
-
-Graphics.createMapFromJson = async function(json) {
-    if (json) {
-        var {doodads, groundDoodads, walls, polygons, bounds, objects, extra} = JSON.parse(json);
-    } else {
-        var {doodads, groundDoodads, walls, polygons, bounds, objects, extra} = await Graphics.fetchMapJson();
-    }
+Graphics.createMapFromJson = function(json, walls_json, doodads_json, polygons_json) {
+    const {doodads, groundDoodads, walls, polygons, bounds, objects, extra} = json;
 
     config.doodads = doodads;
     config.groundDoodads = groundDoodads;
@@ -388,14 +369,12 @@ Graphics.createMapFromJson = async function(json) {
     pixiContainerByName.map.addChild(pixiTextureByName.polygons);
     pixiContainerByName.map.mask = pixiTextureByName.polygons;
 
-    config.loadedMap = game.server.config.mapId;
     cameraState.lastOverdrawTime = -2e3;
 };
 
-
-Graphics.replaceMap = function() {
-    console.log('replaceMap', game.server.config.mapId)
-    // update scalingFactor and resize if map bounds smaller than screen (TODO: also prevent user from increasing scaligFactor if that's the case)
+Graphics.apply_bounds = function(mapBounds) {
+    console.log('apply_bounds', mapBounds);
+    // update scalingFactor and resize if map bounds smaller than screen (TODO: also prevent user from increasing scalingFactor if that's the case)
     const cur_scaling_factor = UI.getScalingFactor();
     if (userScalingFactor) {
         config.settings.scalingFactor = userScalingFactor;
@@ -403,7 +382,7 @@ Graphics.replaceMap = function() {
         userScalingFactor = null;
     }
     let scalingFactor = UI.getScalingFactor();
-    while (game.screenX > (game.server.config.mapBounds.MAX_X - game.server.config.mapBounds.MIN_X)*game.scale || game.screenY > (game.server.config.mapBounds.MAX_Y - game.server.config.mapBounds.MIN_Y)*game.scale) {
+    while (game.screenX > (mapBounds.MAX_X - mapBounds.MIN_X)*game.scale || game.screenY > (mapBounds.MAX_Y - mapBounds.MIN_Y)*game.scale) {
         scalingFactor -= 100;
         game.scale = (game.screenX + game.screenY) / scalingFactor;
     }
@@ -413,24 +392,198 @@ Graphics.replaceMap = function() {
         config.settings.scalingFactor = scalingFactor;
         Graphics.resizeRenderer(window.innerWidth, window.innerHeight);
     }
+        
+    UI.maskMinimap();    
+};
 
-    if (config.loadedMap == game.server.config.mapId) {
-        UI.maskMinimap();
-        return;
+Graphics.load_assets = async function ({parentMapId, mapId, mapVersion, mapBounds, ships}) {
+    console.log('load_assets', {parentMapId, mapId, mapVersion, ships}, config.manifest);
+
+    return await Promise.all([fetch_ships_assets(parentMapId, mapId, ships), fetch_map_assets(parentMapId, mapId, mapVersion)]).then(([ships_assets, map_assets])=>{
+        if (ships_assets && !(config.manifest.mapId == mapId && JSON.stringify(ships) == JSON.stringify(config.manifest.ships))) {
+            apply_ships_assets(mapId, ships, ships_assets);
+        }
+        if (map_assets && !(config.manifest.mapId == mapId && JSON.stringify(mapVersion) == JSON.stringify(config.manifest.mapVersion))) {
+            const json = apply_map_assets(parentMapId, mapId, mapVersion, map_assets);
+            return json.bounds;
+        }
+    });
+};
+
+async function fetch_map_assets(parentMapId, mapId, mapVersion) {
+    if (!mapId || !mapVersion) return;
+
+    const asset_types = MAP_ASSETS;
+    const map_has_changed = config.manifest.mapId === null || (config.manifest.mapId=='vanilla' && config.manifest.mapId != mapId) || ( config.manifest.mapId < mapId);
+
+    try {
+        var assets = await Promise.all(asset_types.map((asset, i)=>{
+            if (map_has_changed || config.manifest.mapVersion[i] < mapVersion[i]) {
+                return fetch_asset(
+                    parentMapId && `${PUBLIC_NAMESPACE}/assets/maps/${parentMapId}/${asset}/${mapVersion[i]||'0'}`, 
+                    `${Network.server_id||PUBLIC_NAMESPACE}/assets/maps/${mapId}/${asset}/${mapVersion[i]||'0'}`);
+            } else {
+                return null;
+            }
+        }));
+    } catch (e) {
+        await new Promise(r=>setTimeout(r, 1000));
+        console.log('fetch_map_assets failed, retry');
+        return fetch_map_assets(parentMapId, mapId, mapVersion);
     }
 
-    for (let k of ["sea", "sand", "rock"])
-        Textures.add(`${game.server.config.mapId}_map_${k}_mask`, `assets/maps/${game.server.config.mapId}/map_${k}_mask.jpg`);
-    initMapTextures();
+    return assets;    
+}
 
-    Textures.delete("gui");
-    Textures.delete("ui_minimap");
-    Textures.add("gui", `assets/maps/${game.server.config.mapId}/gui.png`);
-    UI.setupMinimap();
+function apply_map_assets(parentMapId, mapId, mapVersion, map_assets) {
+    //console.log('apply_map_assets', {parentMapId, mapId, mapVersion, map_assets}, config.manifest);
+    const [json, walls_json, doodads_json, polygons_json, sea_mask_uri, sand_mask_uri, rock_mask_uri, gui_uri] = map_assets;
+
+    // optimization (assumption is that mapId starts as a copy of parentMapId) 
+    const asset_has_changed = (i) => config.manifest.mapId == null || !(config.manifest.mapId == parentMapId && mapVersion[i] == config.manifest.mapVersion[i]);
+    
+    // concurrency check (while downloading, map or version might have changed)
+    const map_has_changed = config.manifest.mapId === null || (config.manifest.mapId=='vanilla' && config.manifest.mapId != mapId) || ( config.manifest.mapId < mapId);
+    const check = (i) => map_has_changed || mapVersion[i] > config.manifest.mapVersion[i];
+
+    if (json && check(0)) {
+        if (asset_has_changed(0)) {
+            console.log('apply_map_assets json');
+            Graphics.createMapFromJson(json, walls_json, doodads_json, polygons_json);
+        }
+        config.manifest.mapVersion[0] = mapVersion[0];
+    }
+    
+    let textures = {};
+    if (sea_mask_uri && check(4)) {
+        if (asset_has_changed(4)) {
+            console.log('apply_map_assets sea_mask');
+            // alternative to ${mapVersion[4]||''}: call Textures.delete
+            Textures.add(`${mapId}_map_sea_mask${mapVersion[4]||''}`, sea_mask_uri);
+            textures['sea_mask'] = `${mapId}_map_sea_mask${mapVersion[4]||''}`;
+        } else {
+            textures['sea_mask'] = `${parentMapId}_map_sea_mask${mapVersion[4]||''}`;
+        }
+        config.manifest.mapVersion[4] = mapVersion[4];
+    }
+    if (sand_mask_uri && check(5)) {
+        if (asset_has_changed(5)) {
+            console.log('apply_map_assets sand_mask');
+            Textures.add(`${mapId}_map_sand_mask${mapVersion[5]||''}`, sand_mask_uri);
+            textures['sand_mask'] = `${mapId}_map_sand_mask${mapVersion[5]||''}`;
+        } else {
+            textures['sand_mask'] = `${parentMapId}_map_sand_mask${mapVersion[5]||''}`;
+        }
+        config.manifest.mapVersion[5] = mapVersion[5];
+    }
+    if (rock_mask_uri && check(6)) {
+        if (asset_has_changed(6)) {
+            console.log('apply_map_assets rock_mask');
+            Textures.add(`${mapId}_map_rock_mask${mapVersion[6]||''}`, rock_mask_uri);
+            textures['rock_mask'] = `${mapId}_map_rock_mask${mapVersion[6]||''}`;
+        } else {
+            textures['rock_mask'] = `${parentMapId}_map_rock_mask${mapVersion[6]||''}`;
+        }
+        config.manifest.mapVersion[6] = mapVersion[6];
+    }
+    
+    initMapTextures(textures);
+
+    if (gui_uri && check(7)) {
+        if (asset_has_changed(7)) {
+            console.log('apply_map_assets gui');
+            Textures.delete("gui");
+            Textures.delete("ui_minimap");
+            Textures.add('gui', gui_uri);
+            UI.setupMinimap();
+        }
+        config.manifest.mapVersion[7] = mapVersion[7];
+    }
+
     UI.maskMinimap();
+    cameraState.lastOverdrawTime = -2e3;
+    config.manifest.mapId = mapId;
+    config.manifest.parentMapId = parentMapId;
 
-    Graphics.createMapFromJson();
-};
+    if (json)
+        return json;
+}
+
+async function fetch_ships_assets(parentMapId, mapId, ships) {
+    if (!ships) return;
+    //console.log('fetch_ships_assets', parentMapId, mapId, ships);
+
+    const asset_types = SHIP_ASSETS;
+    const map_has_changed = config.manifest.mapId === null || (config.manifest.mapId=='vanilla' && config.manifest.mapId != mapId) || ( config.manifest.mapId < mapId);
+
+    try {
+        var assets = await Promise.all(Array.from(ships, x=>x||null) //remove empty
+            .flatMap((versions, id)=>versions?.map((version,i)=>[id, version, i])||[[],[],[]])
+            .map(([id, version, asset_idx])=>{
+                if (id && (map_has_changed || !config.manifest.ships[id] || config.manifest.ships[id][asset_idx] < version)) {
+                    return fetch_asset(
+                        `${PUBLIC_NAMESPACE}/assets/maps/${parentMapId}/ships/${id}/${asset_types[asset_idx]}/${version}`, 
+                        `${Network.server_id||PUBLIC_NAMESPACE}/assets/maps/${mapId}/ships/${id}/${asset_types[asset_idx]}/${version}`);
+                } else {
+                    return null;
+                }
+            }));
+    } catch {
+        await new Promise(r=>setTimeout(r, 1000));
+        console.log('fetch_ships_assets failed, retry');
+        return fetch_ships_assets(parentMapId, mapId, ships);
+    }
+
+    return assets;
+}
+
+function apply_ships_assets(mapId, ships, assets) {
+    console.log('apply_ships_assets', mapId, ships, assets, config.manifest);
+    const asset_types = SHIP_ASSETS;
+    const map_has_changed = config.manifest.mapId === null || (config.manifest.mapId=='vanilla' && config.manifest.mapId != mapId) || ( config.manifest.mapId < mapId);
+
+    for (let i=0; i<assets.length; i+=asset_types.length) {
+        const id = i/asset_types.length;
+        const [ship_json, ship_datauri, ship_shadow_datauri] = assets.slice(i, i+asset_types.length);
+
+        // concurrency check (while downloading, ships might have changed)
+        const check = (asset_idx) => map_has_changed || 
+            (ships[id] && !config.manifest.ships[id]) || //ship was added
+            (!ships[id] && config.manifest.ships[id]) || //ship was removed
+            (!(!ships[id] && !config.manifest.ships[id]) && ships[id][asset_idx] > config.manifest.ships[id][asset_idx]);
+
+        const checks = [
+            ship_json && check(0),
+            ship_datauri !== null && check(1),
+            ship_shadow_datauri !== null && check(2),
+        ];
+
+        if (checks[0]) {
+            config.ships[id] = ship_json;
+            if (config.manifest.ships[id])
+                config.manifest.ships[id][0] = ships[id][0];
+            else
+                config.manifest.ships[id] = [ships[id][0]];
+        }
+
+        if (checks[1]) {
+            Textures.delete(config.ships[id].name);
+            Textures.add(config.ships[id].name, ship_datauri, 'aircraft', config.ships[id].graphics.frame);
+            config.manifest.ships[id][1] = ships[id][1];
+        }
+        if (checks[2]) {
+            Textures.delete(config.ships[id].name+'_shadow');
+            Textures.add(config.ships[id].name+'_shadow', ship_shadow_datauri, 'shadows', config.ships[id].graphics.frame_shadow);
+            config.manifest.ships[id][2] = ships[id][2];
+        }
+
+        if (ships[id])
+            Textures.add_ship_template(config.ships[id].name, config.ships[id].name, config.ships[id].graphics.anchor);
+    }
+    Object.values(Players.all()).forEach(player=>player.sprites.sprite?player.reloadGraphics():player.setupGraphics());
+    UI.setupAircraft();
+}
+
 
 Graphics.initSprite = function(name, container, properties) {
     var sprite = Textures.sprite(name);
@@ -443,7 +596,7 @@ Graphics.initSprite = function(name, container, properties) {
     properties.blend && (sprite.blendMode = PIXI.BLEND_MODES[properties.blend]),
     properties.tint && (sprite.tint = properties.tint),
     properties.mask && (sprite.mask = properties.mask),
-    properties.visible && (sprite.visible = properties.visible),
+    'visible' in properties && (sprite.visible = properties.visible),
     container.addChild(sprite),
     sprite
 };
@@ -463,7 +616,7 @@ Graphics.update = function() {
     pixiContainerByName.groundobjects.position.set(-cameraState.position.x * game.scale, -cameraState.position.y * game.scale),
     pixiContainerByName.doodads.position.set(-cameraState.position.x * game.scale + config.overdraw / 2, -cameraState.position.y * game.scale + config.overdraw / 2),
     pixiContainerByName.shadows.position.set(-cameraState.position.x * (game.scale / config.shadowScaling), -cameraState.position.y * (game.scale / config.shadowScaling)),
-    pixiSpriteByName.minimap_box.position.set(game.screenX - config.minimapPaddingX - config.minimapSize * ((16384 - cameraState.center.x) / 32768), game.screenY - config.minimapPaddingY - config.minimapSize / 2 * ((8192 - cameraState.center.y) / 16384)),
+    pixiSpriteByName.minimap_box?.position.set(game.screenX - config.minimapPaddingX - config.minimapSize * ((16384 - cameraState.center.x) / 32768), game.screenY - config.minimapPaddingY - config.minimapSize / 2 * ((8192 - cameraState.center.y) / 16384)),
     config.overdrawOptimize ? (Math.abs(cameraState.position.x - cameraState.lastOverdraw.x) > config.overdraw / 2 / game.scale || Math.abs(cameraState.position.y - cameraState.lastOverdraw.y) > config.overdraw / 2 / game.scale || game.time - cameraState.lastOverdrawTime > 2e3) && redrawBackground() : redrawBackground()
 };
 
@@ -536,9 +689,9 @@ var redrawBackground = function() {
     pixiTextureByName.renderSprite.position.set(-config.overdraw / 2, -config.overdraw / 2);
     var textureName, o = cameraState.position.x - config.overdraw / game.scale / 2, s = cameraState.position.y - config.overdraw / game.scale / 2, a = -o * game.scale, l = -s * game.scale, u = (-o - 16384) * game.scale, c = (-s - 8192) * game.scale;
     for (textureName of ["sea", "forest", "sand", "rock"])
-        pixiTextureByName[textureName].tilePosition.set(a, l);
+        pixiTextureByName[textureName]?.tilePosition.set(a, l);
     for (textureName of ["sea", "sand", "rock"])
-        pixiTextureByName[textureName + "_mask"].position.set(u, c);
+        pixiTextureByName[textureName + "_mask"]?.position.set(u, c);
     null != pixiTextureByName.polygons && null != pixiTextureByName.polygons.position && pixiTextureByName.polygons.position.set(-o * game.scale, -s * game.scale);
     null != pixiTextureByName.polygons_overlay && null != pixiTextureByName.polygons_overlay.position && pixiTextureByName.polygons_overlay.position.set(-o * game.scale, -s * game.scale);
     cameraState.lastOverdrawTime = game.time;

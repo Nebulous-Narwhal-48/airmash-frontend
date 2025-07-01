@@ -102,15 +102,21 @@ Players.leaveHorizon = function(t) {
 };
 
 Players.updateBadges = function(r) {
-    for (var i, o = Tools.clamp(r.length, 0, 3), s = [], a = 0; a < o; a++)
-        null != (i = playersById[r[a].id]) && (s.push(i.id),
-        i.state.badge != a && (i.state.badge = a,
-        i.changeBadge(n[a])),
-        i.state.hasBadge || (i.state.hasBadge = true,
-        i.render && (i.sprites.badge.visible = true)));
+    for (var i, o = Tools.clamp(r.length, 0, 3), s = [], a = 0; a < o; a++) {
+        i = playersById[r[a].id];
+        if (i && i.sprites.badge) {
+            s.push(i.id);
+            i.state.badge != a && (i.state.badge = a,
+            i.changeBadge(n[a])),
+            i.state.hasBadge || (i.state.hasBadge = true,
+            i.render && (i.sprites.badge.visible = true))
+        };
+    }
     for (var l = 0; l < t.length; l++)
         if (-1 == s.indexOf(t[l])) {
             if (null == (i = playersById[t[l]]))
+                continue;
+            if (!i.sprites.badge)
                 continue;
             i.state.hasBadge && (i.state.hasBadge = false,
             i.sprites.badge.visible = false)
