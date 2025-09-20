@@ -233,6 +233,7 @@ Players.destroy = function(id) {
             UI.updateGameInfo();
         }
     }
+    window.playersDestroy?.(id);
 };
 
 Players.changeType = function(t) {

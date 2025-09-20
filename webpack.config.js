@@ -22,6 +22,7 @@ module.exports = {
       { from: './src/assets', to: 'assets' },
       { from: './src/css', to: 'assets' },
       { from: './src/js/server.js', to: 'assets' },
+      { from: './src/js/proximity_chat.js', to: 'assets' },
       { from: './src/robots.txt', to: 'robots.txt' },
       { from: './src/html/privacy.html', to: 'privacy.html' },
       { from: './src/html/contact.html', to: 'contact.html' },
@@ -42,14 +43,18 @@ module.exports = {
       scriptLoading: 'blocking',
     }),
     
-    // add style.css tag to index.html
+    // add assets tags to index.html
     new class {
       apply(compiler) {
         compiler.hooks.afterEmit.tap('AfterEmitPlugin', (compilation) => {
-          const contentHash = crypto.createHash('md5').update(fs.readFileSync('dist/assets/style.css', 'utf8')).digest('hex');
-          const indexHtml = fs.readFileSync('dist/index.html', 'utf8');
-          const newHtml = indexHtml.replace('</head>', `<link rel="stylesheet" href="assets/style.css?${contentHash}"></head>`);
-          fs.writeFileSync('dist/index.html', newHtml);
+          let indexHtml = fs.readFileSync('dist/index.html', 'utf8'), hash;
+          // style.css
+          hash = crypto.createHash('md5').update(fs.readFileSync('dist/assets/style.css', 'utf8')).digest('hex');
+          indexHtml = indexHtml.replace('</head>', `<link rel="stylesheet" href="assets/style.css?${hash}"></head>`);
+          // proximity_chat.js
+          hash = crypto.createHash('md5').update(fs.readFileSync('dist/assets/proximity_chat.js', 'utf8')).digest('hex');
+          indexHtml = indexHtml.replace('</head>', `<script src="assets/proximity_chat.js?${hash}" defer></script></head>`);
+          fs.writeFileSync('dist/index.html', indexHtml);
         });
       }
     }

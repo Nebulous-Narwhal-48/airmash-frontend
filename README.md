@@ -1,6 +1,8 @@
 >*Notes about this fork
 >
->See https://github.com/Nebulous-Narwhal-48/ab-server
+>- Embedded peer-to-peer server (webrtc+webworker)
+>- Collaborative game editor
+>- Proximity voice chat
 
 
 # airmash-frontend

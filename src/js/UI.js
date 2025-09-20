@@ -658,6 +658,8 @@ UI.parseCommand = function(chatInput) {
                 Network.sendCommand("skin", JSON.stringify({cmd, url, hash:hashHex, player_id: player&&player.id}));
             })();
         }
+    } else if ("voice" === command) {
+        window.parseCommand?.(words[1]?.toLowerCase());
     } else if("help" === command) {
         UI.toggleHelp();
     } else if(!("debug" === command)) {
