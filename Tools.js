@@ -31,7 +31,8 @@ Tools.updateReel = function() {
                 posX: 0,
                 posY: 0,
                 rot: 0,
-                flag: 1
+                flag: 1,
+                //level: i <3 ? 13 : 124
             }),
             (e = Players.get(i + 1)).keystate.UP = true,
             e._offset = r[i]
@@ -40,11 +41,12 @@ Tools.updateReel = function() {
     reelState.dist > 2e3 ? reelState.direction = -1 : reelState.dist < 100 && (reelState.direction = 1),
     reelState.dist += .5 * reelState.direction * game.timeFactor,
     reelState.pan += 1 / reelState.dist * game.timeFactor,
-    reelState.pos.x = reelState.startX + Math.sin(reelState.pan) * reelState.dist,
-    reelState.pos.y = reelState.startY - Math.cos(reelState.pan) * reelState.dist,
-    Graphics.setCamera(reelState.pos.x, reelState.pos.y),
-    Players.update(),
-    Particles.update();
+    reelState.pos.x = reelState.startX + Math.sin(reelState.pan) * reelState.dist;
+    reelState.pos.y = reelState.startY - Math.cos(reelState.pan) * reelState.dist;
+    // reelState.pos.x = reelState.startX;
+    // reelState.pos.y = reelState.startY;
+    game.renderer.setCamera(reelState.pos.x, reelState.pos.y);
+    const {visible_players, visible_objects_count} = Players.update();
     for (var o, s = 1; s <= 5; s++)
         (o = Players.get(s)).pos.x = reelState.pos.x + o._offset,
         o.pos.y = reelState.pos.y + game.screenY / game.scale * .24,
@@ -52,15 +54,17 @@ Tools.updateReel = function() {
         o._prevPos = new Vector((19 * o._prevPos.x + o.pos.x) / 20,(19 * o._prevPos.y + o.pos.y) / 20);
     if (game.time > reelState.explosion) {
         var a = new Vector(Tools.rand(reelState.pos.x - game.halfScreenX / game.scale, reelState.pos.x + game.halfScreenX / game.scale),Tools.rand(reelState.pos.y - game.halfScreenY / game.scale, reelState.pos.y + game.halfScreenY / game.scale));
-        Particles.explosion(a, Tools.rand(2, 2.5), Tools.randInt(4, 7)),
-        Particles.explosion(new Vector(a.x + Tools.rand(-100, 100),a.y + Tools.rand(-100, 100)), Tools.rand(1, 1.2)),
+        game.renderer.particles_explosion(a, Tools.rand(2, 2.5), Tools.randInt(4, 7));
+        game.renderer.particles_explosion(new Vector(a.x + Tools.rand(-100, 100),a.y + Tools.rand(-100, 100)), Tools.rand(1, 1.2));
         reelState.explosion = game.time + Tools.rand(1e3, 3e3)
     }
+    return {visible_players, visible_objects_count};
 };
 
 Tools.wipeReel = function() {
-    Particles.wipe(),
-    Players.wipe()
+    //Particles.wipe(),
+    game.renderer.wipe_particles();
+    Players.wipe();
 };
 
 Tools.detectCapabilities = function() {
@@ -295,14 +299,6 @@ Tools.distFastCheckFloat = function(e, t, n, r, i) {
     return Math.abs(e - n) <= i && Math.abs(t - r) <= i
 };
 
-Tools.updateTime = function(fractionalFrames) {
-    game.timeFactor = fractionalFrames < 60 ? fractionalFrames : 60,
-    game.timeFactorUncapped = game.timeFactor,
-    game.timeFactor > 10 && (game.timeFactor = 10),
-    game.time = performance.now(),
-    game.frames++
-};
-
 Tools.reducedFactor = function() {
     var e = (performance.now() - game.time) / 16.666;
     return Math.abs(game.jitter) > .1 && (e += game.jitter / 16.666),
@@ -333,7 +329,7 @@ Tools.easing = {
 };
 
 Tools.setDebugOptions = function(options, persist=true) {
-    let {collisions, hide_container_map, hide_container_sea, hide_container_shadows, hide_texture_player, hide_texture_thruster, hide_texture_mountains, hide_texture_sea_mask, disable_region_ping, log_packets, remove_mountains, teleport, editor_mode} = options;
+    let {collisions, hide_container_map, hide_container_sea, hide_container_shadows, hide_texture_player, hide_texture_thruster, hide_texture_mountains, hide_texture_sea_mask, log_packets, remove_mountains, teleport, editor_mode} = options;
     let saved = JSON.parse(localStorage.getItem("debug_options")||"{}");
     for (let k in options) {
         if (typeof options[k] !== 'undefined') {
@@ -417,9 +413,9 @@ Tools.updateDebug = function() {
         i = Mobs.countDoodads(),
         o = "",
         s = Players.getMe();
-    let {position:{x, y}} = Graphics.getCameraState();
+    let {position:{x, y}} = game.renderer.cameraState;
     null != s && (o = Tools.debugLine("Coords", Math.round(s.pos.x) + ", " + Math.round(s.pos.y)));
-    var a = Tools.debugLine("FPS", Math.round(t)) + Tools.debugLine("Ticks", (game.debug.ticks / (e - game.debug.last) * 100).toFixed(2) + "%") + Tools.debugLine("Ping", game.ping.toFixed(2) + " ms") + Tools.debugLine("Res", game.screenX + " x " + game.screenY) + '<div class="spacer"></div>' + Tools.debugLine("Players", n[0] + " / " + n[1]) + Tools.debugLine("Mobs", r[0] + " / " + r[1]) + Tools.debugLine("Particles", Particles.count()) + Tools.debugLine("Doodads", i[0] + " / " + i[1]) + '<div class="spacer"></div>' + o + Tools.debugLine("Camera", `${Math.round(x)}, ${Math.round(y)}\n${Math.round(x + game.screenX / game.scale)}, ${Math.round(y + game.screenY / game.scale)}`) + Tools.debugLine("Scale", game.scale.toFixed(2)) + Tools.debugLine("Jitter", game.jitter.toFixed(3)) + '<div class="close" onclick="Tools.hideDebug()">x</div>';
+    var a = Tools.debugLine("FPS", Math.round(t)) + Tools.debugLine("Ticks", (game.debug.ticks / (e - game.debug.last) * 100).toFixed(2) + "%") + Tools.debugLine("Ping", game.ping.toFixed(2) + " ms") + Tools.debugLine("Res", game.screenX + " x " + game.screenY) + '<div class="spacer"></div>' + Tools.debugLine("Players", n[0] + " / " + n[1]) + Tools.debugLine("Mobs", r[0] + " / " + r[1]) + Tools.debugLine("Particles", game.renderer.particles_count()/*Particles.count()*/) + Tools.debugLine("Doodads", i[0] + " / " + i[1]) + '<div class="spacer"></div>' + o + Tools.debugLine("Camera", `${Math.round(x)}, ${Math.round(y)}\n${Math.round(x + game.screenX / game.scale)}, ${Math.round(y + game.screenY / game.scale)}`) + Tools.debugLine("Scale", game.scale.toFixed(2)) + Tools.debugLine("Jitter", game.jitter.toFixed(3)) + '<div class="close" onclick="Tools.hideDebug()">x</div>';
     $("#debug").html(a),
     game.debug.last = e,
     game.debug.ticks = 0,
@@ -568,27 +564,27 @@ var jsonErrorReplacer = function(key, obj) {
     return obj
 };
 
-Tools.handleError = function(e) {
-    clientErrorCount += 1;
-    if (clientErrorCount <= 5) {
-        if (e.error != null) {
-            e.error = JSON.stringify(e.error, jsonErrorReplacer);
-        }
+// Tools.handleError = function(e) {
+//     clientErrorCount += 1;
+//     if (clientErrorCount <= 5) {
+//         if (e.error != null) {
+//             e.error = JSON.stringify(e.error, jsonErrorReplacer);
+//         }
 
-        let server;
-        if (game.server && game.server.id) {
-            server = game.server.id;
-        }
+//         let server;
+//         if (game.server && game.server.id) {
+//             server = game.server.id;
+//         }
 
-        Tools.ajaxPost("https://" + game.backendHost + "/clienterror", {
-            type: "runtime",
-            error: JSON.stringify(e),
-            version: game.version,
-            state: game.state,
-            server,
-        });
-    }
-};
+//         Tools.ajaxPost("https://" + game.backendHost + "/clienterror", {
+//             type: "runtime",
+//             error: JSON.stringify(e),
+//             version: game.version,
+//             state: game.state,
+//             server,
+//         });
+//     }
+// };
 
 Tools.encodeUTF8 = function(e) {
     for (var t = 0, n = new Uint8Array(4 * e.length), r = 0; r != e.length; r++) {

@@ -1,3 +1,5 @@
+import { fetch_catalog, PUBLIC_NAMESPACE, copy_assets, load_assets, upload_map_assets, upload_ship_assets, set_token, MAP_ASSETS, SHIP_ASSETS } from './assets.js';
+
 const editorState = {
     editor_cmd: null,
     bounds: null,
@@ -18,11 +20,23 @@ const editorState = {
 }
 const simplify_tolerance = 5;   //higher values -> less points
 const radiusToScaleRatio = 120; //config.doodads uses scale, config.walls uses radius
-export const PUBLIC_NAMESPACE = '0';
-export const MAP_ASSETS = ['map.json', 'walls.json', 'doodads.json', 'polygons.json', 'map_sea_mask.jpg', 'map_sand_mask.jpg', 'map_rock_mask.jpg', 'gui.png'];
-export const SHIP_ASSETS = ['ship.json', 'ship.png', 'ship_shadow.png'];
-let TOKEN = '';
 let catalog;
+
+
+async function upload_map_assets_helper(asset, version, namespace) {
+    const assets = typeof asset != "undefined" ? {
+        [asset]: export_map_asset(asset)
+    } : MAP_ASSETS.map((_, i)=>export_map_asset(i));
+    return upload_map_assets(assets, version, namespace);
+}
+
+async function upload_ship_assets_helper(ship_id, asset, version, namespace, body) {
+    const assets = typeof asset != "undefined" ? {
+        [asset]: body ?? export_ship_asset(ship_id, asset)
+    } : SHIP_ASSETS.map((_,i) => body ?? export_ship_asset(ship_id, i));
+    return upload_ship_assets(ship_id, assets, version, namespace);
+}
+
 
 export async function startEditor() {
     if (game.state !== Network.STATE.LOGIN) {
@@ -36,13 +50,17 @@ export async function startEditor() {
     Games.selectServer(null, {}, true);
     Games.start(document.querySelector("#playername").value.trim(), true);
     //UI.nameEntered();
+
+    initMaskCanvas('sea');
+    initMaskCanvas('rock');
+    initMaskCanvas('sand');
 }
 window.startEditor = startEditor;
 
 async function load_map({mapId:parentMapId, mapVersion, ships}) {
     const mapId = uuidv7();
     await copy_assets(parentMapId, mapId, PUBLIC_NAMESPACE, Network.peer_id);
-    const mapBounds = await Graphics.load_assets({parentMapId, mapId, mapVersion, ships});
+    const mapBounds = await load_assets({parentMapId, mapId, mapVersion, ships});
     game.server.config.mapBounds = mapBounds;
     if (window._server)
         window._server.postMessage({init:true, config, mapBounds});
@@ -106,12 +124,12 @@ Input.setupEditorMode = function() {
         if (game.gameType != GameType.EDITOR) return;
         if (editorState.control_ship) return;
         if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
-            let {x, y} = Graphics.getCamera();
+            let {x, y} = game.renderer.cameraState.center;
             if (e.key == "ArrowUp") y -= 500;
             if (e.key == "ArrowDown") y += 500;
             if (e.key == "ArrowLeft") x -= 500;
             if (e.key == "ArrowRight") x += 500;
-            Graphics.setCamera(x, y);
+            game.renderer.setCamera(x, y);
             e.stopPropagation();
         }
     }, true);
@@ -119,7 +137,7 @@ Input.setupEditorMode = function() {
         if (game.gameType != GameType.EDITOR) return;
         if (e.target.tagName != 'CANVAS') return;
 
-        let {position:{x, y}} = Graphics.getCameraState();
+        let {position:{x, y}} = game.renderer.cameraState;
         x = x + e.clientX / game.scale;
         y = y + e.clientY / game.scale;
 
@@ -134,7 +152,8 @@ Input.setupEditorMode = function() {
             } else {
                 editorState.selected_mountain = null;
             }
-            Graphics.redrawBackground();
+            game.renderer.redrawBackground?.();//for pixi renderer
+            game.renderer.doodad_visibility(doodad, true);//for new renderer
         } else if (editorState.editor_cmd == 'place_mountain') {
             Input.editorCmd('place_mountain', {x, y, scale:editorState.mountain_scale*radiusToScaleRatio});
         } else if (editorState.editor_cmd == 'select_polygon') {
@@ -155,7 +174,7 @@ Input.setupEditorMode = function() {
         if (game.gameType != GameType.EDITOR) return;
         if (e.target.tagName != 'CANVAS') return;
         
-        let {position:{x, y}} = Graphics.getCameraState();
+        let {position:{x, y}} = game.renderer.cameraState;
         x = x + e.clientX / game.scale;
         y = y + e.clientY / game.scale;
 
@@ -169,7 +188,7 @@ Input.setupEditorMode = function() {
         if (game.gameType != GameType.EDITOR) return;
         if (e.target.tagName != 'CANVAS') return;
         if (editorState.editor_cmd == 'draw_polygon') {
-            let {position:{x, y}} = Graphics.getCameraState();
+            let {position:{x, y}} = game.renderer.cameraState;
             x = x + e.clientX / game.scale;
             y = y + e.clientY / game.scale;
             drawPolygon('end', [x, y]);
@@ -180,10 +199,10 @@ Input.setupEditorMode = function() {
     window.addEventListener('mousewheel', (e) => {
         if (game.gameType != GameType.EDITOR) return;
         e.stopPropagation();
-        let {x, y} = Graphics.getCamera();
+        let {x, y} = game.renderer.cameraState.center;
         y += e.deltaY * 10;
         x += e.deltaX * 10;
-        Graphics.setCamera(x, y);
+        game.renderer.setCamera(x, y);
     });
     document.documentElement.style.overscrollBehaviorX = 'none';
 };
@@ -427,8 +446,8 @@ Input.editorCmd = function(cmd, params) {
                     const type = Players.getMe().type;
                     const version = config.manifest.ships[type][1] + 1;
                     Promise.all([
-                        upload_ship_assets(type, 1, version, undefined, base64DataUri),
-                        upload_ship_assets(type, 2, version, undefined, base64DataUri_shadow),
+                        upload_ship_assets_helper(type, 1, version, undefined, base64DataUri),
+                        upload_ship_assets_helper(type, 2, version, undefined, base64DataUri_shadow),
                     ]).then(()=>Network.sendCommand("editor", `edit_ship texture ${type} ${version} ${anchor.join(' ')}`));
                 }
 
@@ -445,7 +464,7 @@ Input.editorCmd = function(cmd, params) {
                 } else if (params.color) {
                     const color = params.color;
                     const {collisions, graphics:{baseScale}} = config.ships[Players.getMe().type];
-                    const [base64DataUri, anchor] = drawCollisions(collisions, baseScale, color);
+                    const [base64DataUri, anchor, {w,h}] = drawCollisions(collisions, baseScale, color);
                     document.getElementById(`ship_anchor`).value = anchor.reduce((a,b)=>a+','+b);
                     createShadow(base64DataUri).then(base64DataUri_shadow=>updateTexture(base64DataUri, base64DataUri_shadow, anchor));
                 } else if (params.prompt) {
@@ -615,7 +634,7 @@ Network.editorCmd = function(cmd, params) {
     if (!cmd) return;
     if (false){
 
-    } else if (cmd == 'map') {        
+    } else if (cmd == 'map') {
         const {player_id, mapId, mapVersion, asset} = params;
         if (config.manifest.mapId == mapId && config.manifest.mapVersion[asset] + 1 == mapVersion[asset]) {
             config.manifest.mapVersion[asset] = mapVersion[asset];
@@ -632,17 +651,17 @@ Network.editorCmd = function(cmd, params) {
                 paintMask(params.x, params.y, params.paint_type, params.brush);
 
             if (player_id == Players.getMe().id) {
-                upload_map_assets(asset, mapVersion[asset]);
+                upload_map_assets_helper(asset, mapVersion[asset]);
 
                 if (params.subcmd == 'delete_polygon' || params.subcmd == 'add_polygon') {
                     config.manifest.mapVersion[7] = mapVersion[7];//todo remove hardcoded
-                    upload_map_assets(7, mapVersion[7]);
+                    upload_map_assets_helper(7, mapVersion[7]);
                 }
             }
         } else {
             game.server.config.mapId = mapId;
             game.server.config.mapVersion = mapVersion;
-            Graphics.load_assets({...game.server.config});
+            load_assets({...game.server.config});
         }
         
     } else if (cmd == 'clone_ship') {
@@ -664,14 +683,14 @@ Network.editorCmd = function(cmd, params) {
         //  the case where player_id is not the owner is not handled because adds more complexity
         //  right now the server makes sure that player_id is always the server owner
         if (params.player_id == Players.getMe().id) {
-            upload_ship_assets(params.new_type);
+            upload_ship_assets_helper(params.new_type);
         }
 
     } else if (cmd == 'del_ship') {
-        Graphics.load_assets({parentMapId:config.manifest.parentMapId, mapId:config.manifest.mapId, ships: params.ships});
+        load_assets({parentMapId:config.manifest.parentMapId, mapId:config.manifest.mapId, ships: params.ships});
 
         if (params.player_id == Players.getMe().id) {
-            upload_ship_assets(params.type, undefined, -1, undefined, '');
+            upload_ship_assets_helper(params.type, undefined, -1, undefined, '');
         }
               
     } else if (cmd == 'edit_ship') {
@@ -695,8 +714,9 @@ Network.editorCmd = function(cmd, params) {
                     }  
                 } else if (k.startsWith('graphics')) {
                     Object.values(Players.all()).filter(x=>x.type==type).forEach(player=>{
-                        if (k == 'graphics.thrusters' || k == 'graphics.rotors')
-                            player.destroy();//remove old thrusters/rotors
+                        // is this needed?
+                        // if (k == 'graphics.thrusters' || k == 'graphics.rotors')
+                        //     player.destroy();//remove old thrusters/rotors
                         player.reloadGraphics();
                     });
                 }
@@ -706,10 +726,10 @@ Network.editorCmd = function(cmd, params) {
                     Input.editorCmd(cmd);
 
                 if (player_id == Players.getMe().id) {
-                    upload_ship_assets(type, 0);
+                    upload_ship_assets_helper(type, 0);
                 }
             } else {
-                Graphics.load_assets({parentMapId:config.manifest.parentMapId, mapId:config.manifest.mapId, ships});
+                load_assets({parentMapId:config.manifest.parentMapId, mapId:config.manifest.mapId, ships});
             }
         } else if (params.subcmd == 'texture') {
             const {type, ships, anchor, player_id} = params;
@@ -720,153 +740,16 @@ Network.editorCmd = function(cmd, params) {
                 config.manifest.ships[type][0] = ships[type][0];
 
                 if (player_id == Players.getMe().id) {
-                    upload_ship_assets(type, 0);
+                    upload_ship_assets_helper(type, 0);
                 }
             } else {
                 //if players has just joined and has not finished load_ships
             }
 
-            Graphics.load_assets({parentMapId:config.manifest.parentMapId, mapId:config.manifest.mapId, ships});
+            load_assets({parentMapId:config.manifest.parentMapId, mapId:config.manifest.mapId, ships});
         }
     }
 };
-
-async function fetch_catalog() {
-    const data = await fetch(`https://asset-manager.airmash.workers.dev`).then(res=>res.json());
-    /* 
-    [{"k":"0/assets/maps/vanilla/doodads.json/0","owner":"a","version":0},{"k":"0/assets/maps/vanilla/ships/1/ship.json/0","w":0,"version":0},...]
-    */
-    const maps = {};
-    for (let {k, w, version} of data) {
-        const [namespace, , , mapId, asset] = k.split('/');
-        maps[mapId] ||= {mapId, mapVersion:[], ships:[], w};
-        if (asset == 'ships') {
-            const [,,,,, ship_id, asset, version] = k.split('/');
-            maps[mapId].ships[ship_id] ||= [];
-            maps[mapId].ships[ship_id][SHIP_ASSETS.indexOf(asset)] = version;
-        } else {
-            const [,,,, asset, version] = k.split('/');
-            maps[mapId].mapVersion[MAP_ASSETS.indexOf(asset)] = version;
-        }
-    }
-    return maps;
-}
-window.fetch_catalog = fetch_catalog;
-
-export async function fetch_asset(key1, key2) {
-    //if (key1.includes('undefined') || key2.includes('undefined')) throw "";
-    const asset = (key1||key2).split('/').at(-2);
-    const cache = await caches.open('asset_cache');
-    const res = (key1 && await cache.match(key1)) || (key2 && await cache.match(key2));
-    if (res && !location.search.includes('nocache')) {
-        console.log('asset from cache', key1, key2);
-        var data = asset.endsWith('json') ? await res.json() : await res.text();
-    } else {
-        try {
-            if (!key1) throw "";
-            console.log('fetching asset', key1);
-            var data = await fetch(`https://asset-manager.airmash.workers.dev/${key1}`, {
-                headers: {
-                    "authorization": `Bearer ${TOKEN}`,
-                }
-            }).then(res=>asset.endsWith('json') ? res.json() : res.text());
-            await cache.put(key1, new Response(asset.endsWith('json') ? JSON.stringify(data) : data));
-            if (key2)
-                await cache.put(key2, new Response(asset.endsWith('json') ? JSON.stringify(data) : data));
-        } catch(e) {
-            if (!key2) throw "fetch_asset assert 2";
-            try {
-                console.log('fetching asset', key2);
-                var data = await fetch(`https://asset-manager.airmash.workers.dev/${key2}`, {
-                    headers: {
-                        "authorization": `Bearer ${TOKEN}`,
-                    }
-                }).then(res=>asset.endsWith('json') ? res.json() : res.text());
-                if (key1)
-                    await cache.put(key1, new Response(asset.endsWith('json') ? JSON.stringify(data) : data));
-                await cache.put(key2, new Response(asset.endsWith('json') ? JSON.stringify(data) : data));
-            } catch(e) {
-                //console.error('fetching asset failed:', e);
-                throw e;
-            }
-        }
-    }
-    return data;
-}
-
-let current_uploads = {};
-async function upload_assets_throttled(assets) {
-    // if a request is already in progress for the same assets(excl.version), cancel it and start a new one
-    const key = Object.keys(assets).filter(x=>assets[x]).map(x=>`${x}:${assets[x].namespace}`).join('');
-    //console.log('upload_assets_throttled', key, assets);
-    if (!current_uploads[key]) {
-        current_uploads[key] = {ts:Date.now()};
-        return upload_assets(assets);
-    } else {
-        const diff = Date.now() - current_uploads[key].ts;
-        clearTimeout(current_uploads[key].timer);
-        await new Promise(resolve=>{current_uploads[key].timer = setTimeout(resolve, 1000 - diff);});
-        current_uploads[key].ts = Date.now();
-        return upload_assets(assets);
-    }
-}
-
-async function upload_assets(assets) {
-    await Promise.all(Object.keys(assets).map((asset)=>{
-        if (!assets[asset]) return;
-        let {version, namespace, body, copy} = assets[asset];
-        const k = `${namespace||Network.server_id}/assets/${asset}${typeof version != "undefined" ? `/${version}`:''}`;
-        if (typeof body != "undefined" && asset.endsWith('.json'))
-            body = JSON.stringify(body);
-        console.log('upload_assets', k, body?.length, copy);
-        return fetch(`https://asset-manager.airmash.workers.dev/${k}${copy?`?copy=${copy}`:''}`, {
-            method: "PUT",
-            headers: {
-                "content-type": "application/text",
-                "authorization": `Bearer ${TOKEN}`,
-            },
-            body,
-        });
-    }));
-}
-
-async function upload_map_assets(asset, version, namespace) {
-    const mapId = config.manifest.mapId || 'vanilla';
-    return upload_assets_throttled({
-        [`maps/${mapId}/map.json`]: (typeof asset == 'undefined' || asset === 0) && {version, namespace, body:exportJson(true)},
-        [`maps/${mapId}/walls.json`]: (typeof asset == 'undefined' || asset === 1) && {version, namespace, body:''},
-        [`maps/${mapId}/doodads.json`]: (typeof asset == 'undefined' || asset === 2) && {version, namespace, body:''},
-        [`maps/${mapId}/polygons.json`]: (typeof asset == 'undefined' || asset === 3) && {version, namespace, body:''},
-        [`maps/${mapId}/map_sea_mask.jpg`]: (typeof asset == 'undefined' || asset === 4) && {version, namespace, body:exportMask('map_sea_mask.jpg', true)},
-        [`maps/${mapId}/map_sand_mask.jpg`]: (typeof asset == 'undefined' || asset === 5) && {version, namespace, body:exportMask('map_sand_mask.jpg', true)},
-        [`maps/${mapId}/map_rock_mask.jpg`]: (typeof asset == 'undefined' || asset === 6) && {version, namespace, body:exportMask('map_rock_mask.jpg', true)},
-        [`maps/${mapId}/gui.png`]: (typeof asset == 'undefined' || asset === 7) && {version, namespace, body:exportMinimap(true)},
-    });
-}
-
-async function upload_ship_assets(ship_id, asset, version, namespace, body) {
-    const mapId = config.manifest.mapId || 'vanilla';
-    version = typeof version == 'undefined' ? config.manifest.ships[ship_id][asset] : version;
-    return upload_assets_throttled({
-        [`maps/${mapId}/ships/${ship_id}/ship.json`]: (typeof asset == 'undefined' || asset === 0) && {version, namespace, body:body||config.ships[ship_id]},
-        [`maps/${mapId}/ships/${ship_id}/ship.png`]: (typeof asset == 'undefined' || asset === 1) && {version, namespace, body:body||(!config.ships[ship_id].graphics.frame ? exportShipTexture(ship_id, false, false) : '')},
-        [`maps/${mapId}/ships/${ship_id}/ship_shadow.png`]: (typeof asset == 'undefined' || asset === 2) && {version, namespace, body:body||(!config.ships[ship_id].graphics.frame ? exportShipTexture(ship_id, true, false) : '')},
-    });
-}
-
-async function copy_assets(mapIdSrc, mapIdTarget, namespaceSrc, namespaceTarget) {
-    await upload_assets({
-        [`maps/${mapIdTarget}`]: {namespace:namespaceTarget, copy:`${namespaceSrc}/assets/maps/${mapIdSrc}`},
-    });
-}
-
-window.upload_vanilla = async ()=>{
-    TOKEN = 'a';
-    await upload_map_assets(undefined, 0, PUBLIC_NAMESPACE);
-    await Promise.all([...new Array(config.ships.length).keys()].slice(1).map(i=>upload_ship_assets(i, undefined, 0, PUBLIC_NAMESPACE)));
-    TOKEN = '';
-};
-window.test_copy = ()=>copy_assets('vanilla', '0', 'xxx');
 
 async function callGenerate({prompt, width, height, guidance, steps, seed}) {
     const buffer = await fetch(`...`, {
@@ -899,8 +782,7 @@ async function createShadow(img_src) {
         document.head.appendChild(script);
         await new Promise((resolve,reject)=>{
             script.onload = async () => {
-                await window.cv;
-                resolve();
+                cv['onRuntimeInitialized'] = resolve;
             };
         });
     }
@@ -916,7 +798,6 @@ async function createShadow(img_src) {
     img.src = img_src;
     await new Promise(r=>img.onload=r);
 
-    const cv = await window.cv;
     const canvas = document.createElement('canvas');
     const src = cv.imread(img);
 
@@ -974,7 +855,7 @@ function addMountain(x, y, scale) {
     config.doodads.push([x, y, 1, scale/radiusToScaleRatio]);
     config.walls.push([x, y, scale]);
     doodad[8].visible = true;
-    Graphics.redrawBackground();
+    game.renderer.redrawBackground?.();// for pixi renderer
 }
 
 function deleteMountain(id) {
@@ -982,7 +863,7 @@ function deleteMountain(id) {
     config.doodads.splice(id, 1);
     config.walls.splice(id, 1);
     editorState.selected_mountain = null;//todo: only if is me..
-    Graphics.redrawBackground();
+    game.renderer.redrawBackground?.();
 }
 
 function drawCollisions(collisions, scale, color){
@@ -1014,86 +895,118 @@ function drawCollisions(collisions, scale, color){
 }
 
 function drawPolygonsOverlay([x, y]) {
-    const {sprites:pixiTextureByName, layers:pixiContainerByName} = game.graphics;
-    const polygons = config.polygons;
-    const colors = [0xe6194b, 0x3cb44b, 0xffe119, 0xf58231, 0x911eb4, 0x46f0f0, 0xf032e6,  0xbcf60c, 0x008080];
-    let cur_color = 0;
+    if (game.renderer.constructor.name == 'PIXIRenderer') {
+        const {sprites:pixiTextureByName, layers:pixiContainerByName} = game.renderer.graphics;
+        const polygons = config.polygons;
+        const colors = [0xe6194b, 0x3cb44b, 0xffe119, 0xf58231, 0x911eb4, 0x46f0f0, 0xf032e6,  0xbcf60c, 0x008080];
+        let cur_color = 0;
 
-    if (pixiTextureByName.polygons_overlay) {  
-        pixiContainerByName.map.removeChild(pixiTextureByName.polygons_overlay);
-        pixiTextureByName.polygons_overlay.destroy();
-    }
-
-    pixiTextureByName.polygons_overlay = new PIXI.Graphics;
-    pixiTextureByName.polygons_overlay.alpha = 0.5;
-    let t, r, o, points, points_grouped, a, l, u, c = 0, h = 0, d = 0;
-    for (l = 0; l < polygons.length; l++) {
-        for (o = 0, u = 0; u < polygons[l].length; u++) {
-            pixiTextureByName.polygons_overlay.beginFill(colors[cur_color]);
-            cur_color = ++cur_color === colors.length ? 0 : cur_color;
-            for (points = [], points_grouped = [], a = 0; a < polygons[l][u].length; a += 2) {
-                t = polygons[l][u][a] + h;
-                r = polygons[l][u][a + 1] + d;
-                points.push(parseFloat(t), -parseFloat(r));
-                points_grouped.push([parseFloat(t), -parseFloat(r)]);
-                h = t;
-                d = r;
-                c++;
-            }
-            if (!Tools.isPointInsidePolygon([x, y], points_grouped))
-                continue;
-            editorState.selected_polygon = l;
-            pixiTextureByName.polygons_overlay.drawPolygon(points);
-            0 != o && pixiTextureByName.polygons_overlay.addHole();
-            o++;
-            pixiTextureByName.polygons_overlay.endFill();
-        }
-    }
-    Graphics.initPolygonsScale();
-    pixiContainerByName.map.addChild(pixiTextureByName.polygons_overlay);
-    Graphics.redrawBackground();
-};
-
-function drawPolygon(status, [x, y]) {
-    const {sprites:pixiTextureByName, layers:pixiContainerByName} = game.graphics;
-    if (status == 'begin') {
         if (pixiTextureByName.polygons_overlay) {  
             pixiContainerByName.map.removeChild(pixiTextureByName.polygons_overlay);
             pixiTextureByName.polygons_overlay.destroy();
         }
+
         pixiTextureByName.polygons_overlay = new PIXI.Graphics;
         pixiTextureByName.polygons_overlay.alpha = 0.5;
+        let t, r, o, points, points_grouped, a, l, u, c = 0, h = 0, d = 0;
+        for (l = 0; l < polygons.length; l++) {
+            for (o = 0, u = 0; u < polygons[l].length; u++) {
+                pixiTextureByName.polygons_overlay.beginFill(colors[cur_color]);
+                cur_color = ++cur_color === colors.length ? 0 : cur_color;
+                for (points = [], points_grouped = [], a = 0; a < polygons[l][u].length; a += 2) {
+                    t = polygons[l][u][a] + h;
+                    r = polygons[l][u][a + 1] + d;
+                    points.push(parseFloat(t), -parseFloat(r));
+                    points_grouped.push([parseFloat(t), -parseFloat(r)]);
+                    h = t;
+                    d = r;
+                    c++;
+                }
+                if (!Tools.isPointInsidePolygon([x, y], points_grouped))
+                    continue;
+                editorState.selected_polygon = l;
+                pixiTextureByName.polygons_overlay.drawPolygon(points);
+                0 != o && pixiTextureByName.polygons_overlay.addHole();
+                o++;
+                pixiTextureByName.polygons_overlay.endFill();
+            }
+        }
         Graphics.initPolygonsScale();
-        pixiContainerByName.sea.addChild(pixiTextureByName.polygons_overlay);
-        pixiTextureByName.polygons_overlay.lineStyle(4, 0xffffff);
-        pixiTextureByName.polygons_overlay.moveTo(x, y);
-        editorState.drawing = true;
-        editorState.points = [[x, y]];
-    } else if (status == 'drawing') {
-        if (!editorState.drawing) return;
-        pixiTextureByName.polygons_overlay.moveTo(...editorState.points.at(-1));
-        pixiTextureByName.polygons_overlay.lineTo(x, y);
-        editorState.points.push([x, y]);
-    } else if (status == 'end') {
-        if (!editorState.drawing) return;
-
-        pixiContainerByName.sea.removeChild(pixiTextureByName.polygons_overlay);
-        pixiTextureByName.polygons_overlay.destroy();
-        pixiTextureByName.polygons_overlay = null;
-
-        // make sure path is closed
-        editorState.points.push(editorState.points[0]);
-        // reduce number of points
-        editorState.points = simplify(editorState.points.map(([x,y])=>({x,y})), simplify_tolerance).map(({x,y})=>[x,y]);
-
-        //addPolygon(editorState.points);
-        Input.editorCmd('add_polygon', {points:editorState.points});
-
-        editorState.drawing = false;
-        editorState.points = null;
+        pixiContainerByName.map.addChild(pixiTextureByName.polygons_overlay);
+        game.renderer.redrawBackground();
+    } else {
+        editorState.selected_polygon = game.renderer.highlight_polygon(x, y);
     }
+};
 
-    Graphics.redrawBackground();
+function drawPolygon(status, [x, y]) {
+    if (game.renderer.constructor.name == 'PIXIRenderer') {
+        const {sprites:pixiTextureByName, layers:pixiContainerByName} = game.graphics;
+        if (status == 'begin') {
+            if (pixiTextureByName.polygons_overlay) {  
+                pixiContainerByName.map.removeChild(pixiTextureByName.polygons_overlay);
+                pixiTextureByName.polygons_overlay.destroy();
+            }
+            pixiTextureByName.polygons_overlay = new PIXI.Graphics;
+            pixiTextureByName.polygons_overlay.alpha = 0.5;
+            Graphics.initPolygonsScale();
+            pixiContainerByName.sea.addChild(pixiTextureByName.polygons_overlay);
+            pixiTextureByName.polygons_overlay.lineStyle(4, 0xffffff);
+            pixiTextureByName.polygons_overlay.moveTo(x, y);
+            editorState.drawing = true;
+            editorState.points = [[x, y]];
+        } else if (status == 'drawing') {
+            if (!editorState.drawing) return;
+            pixiTextureByName.polygons_overlay.moveTo(...editorState.points.at(-1));
+            pixiTextureByName.polygons_overlay.lineTo(x, y);
+            editorState.points.push([x, y]);
+        } else if (status == 'end') {
+            if (!editorState.drawing) return;
+
+            pixiContainerByName.sea.removeChild(pixiTextureByName.polygons_overlay);
+            pixiTextureByName.polygons_overlay.destroy();
+            pixiTextureByName.polygons_overlay = null;
+
+            // make sure path is closed
+            editorState.points.push(editorState.points[0]);
+            // reduce number of points
+            editorState.points = simplify(editorState.points.map(([x,y])=>({x,y})), simplify_tolerance).map(({x,y})=>[x,y]);
+
+            //addPolygon(editorState.points);
+            Input.editorCmd('add_polygon', {points:editorState.points});
+
+            editorState.drawing = false;
+            editorState.points = null;
+        }
+
+        game.renderer.redrawBackground();
+    } else {
+        if (status == 'begin') {
+            editorState.drawing = true;
+            editorState.points = [[x, y]];
+            game.renderer.set_editor_points(editorState.points);
+        } else if (status == 'drawing') {
+            if (!editorState.drawing) return;
+            const last = editorState.points[editorState.points.length - 1];
+            if (Math.hypot(x - last[0], y - last[1]) > 5) {
+                editorState.points.push([x, y]);
+                game.renderer.set_editor_points(editorState.points);
+            }
+        } else if (status == 'end') {
+            if (!editorState.drawing) return;
+
+            // Close the loop
+            editorState.points.push(editorState.points[0]);
+            // Simplify
+            editorState.points = simplify(editorState.points.map(([x,y])=>({x,y})), simplify_tolerance).map(({x,y})=>[x,y]);
+
+            Input.editorCmd('add_polygon', {points:editorState.points});
+
+            editorState.drawing = false;
+            editorState.points = null;
+            game.renderer.set_editor_points(null);
+        }
+    }
 };
 
 function addPolygon(points) {
@@ -1113,7 +1026,7 @@ function addPolygon(points) {
     config.polygons[1][0][0] -= points[0][0];
     config.polygons[1][0][1] -= -points[0][1];
 
-    Graphics.createMapFromJson(JSON.parse(JSON.stringify({doodads: config.doodads, groundDoodads:config.groundDoodads, walls: config.walls, polygons: config.polygons, objects: config.objects})));
+    game.renderer.createMapFromJson(JSON.parse(JSON.stringify({doodads: config.doodads, groundDoodads:config.groundDoodads, walls: config.walls, polygons: config.polygons, objects: config.objects})));
     reloadMinimap();
 };
 
@@ -1121,8 +1034,6 @@ function deletePolygon(selected_polygon) {
     if (selected_polygon === null) return;
     if (!editorState.polygons)
         editorState.polygons = JSON.parse(JSON.stringify(config.polygons));
-
-    const {sprites:pixiTextureByName, layers:pixiContainerByName} = game.graphics;
 
     let sum_xy = [0, 0];
     config.polygons[selected_polygon].forEach((x,i)=>{
@@ -1141,30 +1052,141 @@ function deletePolygon(selected_polygon) {
 
     editorState.selected_polygon = null;//todo: only if is me..
 
-    Graphics.createMapFromJson(JSON.parse(JSON.stringify({doodads: config.doodads, groundDoodads: config.groundDoodads, walls: config.walls, polygons: config.polygons, objects: config.objects})));
+    game.renderer.createMapFromJson(JSON.parse(JSON.stringify({doodads: config.doodads, groundDoodads: config.groundDoodads, walls: config.walls, polygons: config.polygons, objects: config.objects})));
     reloadMinimap();
-    pixiContainerByName.map.removeChild(pixiTextureByName.polygons_overlay);
-    pixiTextureByName.polygons_overlay?.destroy();
-    pixiTextureByName.polygons_overlay = null;
-    
-    Graphics.redrawBackground();
+
+    if (game.renderer.constructor.name == 'PIXIRenderer') {
+        const {sprites:pixiTextureByName, layers:pixiContainerByName} = game.graphics;
+        pixiContainerByName.map.removeChild(pixiTextureByName.polygons_overlay);
+        pixiTextureByName.polygons_overlay?.destroy();
+        pixiTextureByName.polygons_overlay = null;
+        game.renderer.redrawBackground();
+    }
 };
 
 function reloadMinimap() {
     const dataUrl = exportMinimap(true);
-    Textures.delete("gui");
-    Textures.delete("ui_minimap");
-    Textures.add("gui", dataUrl);
-    UI.setupMinimap();
-    UI.maskMinimap();
+    game.renderer.reload_minimap(dataUrl);
+    // Textures.delete("gui");
+    // Textures.delete("ui_minimap");
+    // Textures.add("gui", dataUrl);
+    // UI.setupMinimap();
+    // UI.maskMinimap();
 }
 
+async function initMaskCanvas(type) {
+    const url = game.renderer[`${type}_mask_uri`];//renderer.sea_mask_uri,..
+    if (!url) {
+        // retry
+        await new Promise(r => setTimeout(r, 1000));
+        return initMaskCanvas(type);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 4096;
+    canvas.height = 2048;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const img = new Image();
+    img.src = url;
+    await new Promise(r => img.onload = r);
+    ctx.drawImage(img, 0, 0, 4096, 2048);
+
+    editorState[`${type}_canvas`] = canvas;
+}
+
+const PAINT_LAYERS = {
+    'sea': 0,
+    'sand': 1,
+    'rock': 2
+};
 function paintMask(x, y, paint_type, brush) {
+    const type = (paint_type || '+rock').replace('+', '').replace('-', '');
+    const layerIndex = PAINT_LAYERS[type];
+
+    const canvas = editorState[`${type}_canvas`];
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // Convert World coords to Texture coords
+    const texX = Math.round((x + 16384) / 8);
+    const texY = Math.round((y + 8192) / 8);
+
+    const radius = brush.radius;
+    const alpha_step = brush.step * (paint_type?.startsWith('-') ? -1 : 1);
+
+    // Dirty Rectangle
+    const startX = Math.max(0, texX - radius);
+    const startY = Math.max(0, texY - radius);
+    const endX = Math.min(4096, texX + radius);
+    const endY = Math.min(2048, texY + radius);
+
+    const w = endX - startX;
+    const h = endY - startY;
+    if (w <= 0 || h <= 0) return;
+
+    const imageData = ctx.getImageData(startX, startY, w, h);
+    const data = imageData.data;
+    let changed = false;
+
+    for (let j = 0; j < h; j++) {
+        for (let i = 0; i < w; i++) {
+            const currentX = startX + i;
+            const currentY = startY + j;
+            const dist = Math.sqrt((currentX - texX) ** 2 + (currentY - texY) ** 2);
+
+            if (dist > radius) continue;
+
+            const idx = (i + j * w) * 4;
+            let _alpha = brush.gradient ? Math.round(Math.abs(alpha_step) * (1 - dist / radius)) : Math.abs(alpha_step);
+            if (paint_type?.startsWith('-')) _alpha = -_alpha;
+
+            const oldVal = data[idx];
+            const val = Math.max(0, Math.min(255, oldVal + _alpha));
+
+            if (val !== oldVal) {
+                data[idx] = val;
+                data[idx + 1] = val;
+                data[idx + 2] = val;
+                data[idx + 3] = 255; 
+                changed = true;
+            }
+        }
+    }
+
+    if (changed) {
+        // 1. Update the CPU Canvas (Source of Truth) normally (Top-to-Bottom)
+        ctx.putImageData(imageData, startX, startY);
+
+        // 2. Prepare Data for GPU (Bottom-to-Top)
+        // Since we can't use flipY on partial updates, and the texture is stored inverted,
+        // we must manually reverse the rows of the byte array we send to the GPU.
+        const flippedData = new Uint8Array(w * h * 4);
+        const rowBytes = w * 4;
+        
+        for (let row = 0; row < h; row++) {
+            // Source row (Top down)
+            const srcStart = row * rowBytes;
+            const srcEnd = srcStart + rowBytes;
+            
+            // Dest row (Bottom up)
+            const destStart = (h - 1 - row) * rowBytes;
+            
+            // Copy the row
+            flippedData.set(data.subarray(srcStart, srcEnd), destStart);
+        }
+
+        // 3. Send raw flipped bytes to renderer
+        game.renderer.update_map_mask(flippedData, layerIndex, startX, startY, w, h);
+    }
+}
+
+function paintMask_pixi(x, y, paint_type, brush) {
     const texture_name = (paint_type || '+rock').replace('+','').replace('-', '');
     const container_name = texture_name == 'sea' ? 'sea' : 'map';
 
     if (!editorState[`${texture_name}_canvas`]) {
-        const img = game.graphics.sprites[`${texture_name}_mask`].texture.baseTexture.source;
+        const img = game.renderer.graphics.sprites[`${texture_name}_mask`].texture.baseTexture.source;
         const canvas = document.createElement('canvas');
         canvas.width = 4096;
         canvas.height = 2048;
@@ -1172,8 +1194,8 @@ function paintMask(x, y, paint_type, brush) {
         ctx.drawImage(img, 0, 0);
         editorState[`${texture_name}_canvas`] = canvas;
 
-        game.graphics.layers[container_name].removeChild(texture_name == 'sea' ? game.graphics.sprites[texture_name+'_mask'] : game.graphics.sprites[texture_name].mask);
-        game.graphics.sprites[texture_name].mask = null;
+        game.renderer.graphics.layers[container_name].removeChild(texture_name == 'sea' ? game.renderer.graphics.sprites[texture_name+'_mask'] : game.renderer.graphics.sprites[texture_name].mask);
+        game.renderer.graphics.sprites[texture_name].mask = null;
         const texture = new PIXI.Texture.fromCanvas(canvas);
         const sprite = new PIXI.Sprite(texture);
         sprite.scale.set(8 * game.scale, 8 * game.scale);
@@ -1181,10 +1203,10 @@ function paintMask(x, y, paint_type, brush) {
             sprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
             sprite.alpha = .5;
         }
-        game.graphics.sprites[`${texture_name}_mask`] = sprite;
+        game.renderer.graphics.sprites[`${texture_name}_mask`] = sprite;
         if (texture_name != 'sea')
-            game.graphics.sprites[texture_name].mask = game.graphics.sprites[`${texture_name}_mask`];
-        game.graphics.layers[container_name].addChild(game.graphics.sprites[`${texture_name}_mask`]);
+            game.renderer.graphics.sprites[texture_name].mask = game.renderer.graphics.sprites[`${texture_name}_mask`];
+        game.renderer.graphics.layers[container_name].addChild(game.renderer.graphics.sprites[`${texture_name}_mask`]);
     }
 
     x += 16384;
@@ -1213,10 +1235,32 @@ function paintMask(x, y, paint_type, brush) {
         }
     }
     ctx.putImageData(imageData, 0, 0);
-    game.graphics.sprites[`${texture_name}_mask`].texture.update();
+    game.renderer.graphics.sprites[`${texture_name}_mask`].texture.update();
 
-    Graphics.redrawBackground();
+    game.renderer.redrawBackground();
 };
+
+
+function export_map_asset(asset) {
+    if (MAP_ASSETS[asset] == 'map.json')
+        return exportJson(true);
+    else if (MAP_ASSETS[asset].includes('mask'))
+        return exportMask(MAP_ASSETS[asset], true)
+    else if (MAP_ASSETS[asset] == 'gui.png')
+        return exportMinimap(true);
+    return '';
+}
+
+function export_ship_asset(ship_id, asset) {
+    if (SHIP_ASSETS[asset] == 'ship.json')
+        return config.ships[ship_id];
+    else if (SHIP_ASSETS[asset] == 'ship.png')
+        return !config.ships[ship_id].graphics.frame ? exportShipTexture(ship_id, false, false) : '';
+    else if (SHIP_ASSETS[asset] == 'ship_shadow.png')
+        return !config.ships[ship_id].graphics.frame ? exportShipTexture(ship_id, true, false) : '';
+    else
+        throw 'assert';
+}
 
 function exportJson(nodownload=false) {
     const json = {
@@ -1257,10 +1301,10 @@ function exportJson(nodownload=false) {
 function exportMask(file, nodownload=false) {
     const type = file.match(/_(.*)_/)[1];//rock,sand,sea
     let canvas = editorState[`${type}_canvas`];
-    if (!canvas) {
-        paintMask(-Infinity, -Infinity,  '+' + type);
-        canvas = editorState[`${type}_canvas`];
-    }
+    // if (!canvas) {
+    //     paintMask(-Infinity, -Infinity,  '+' + type);
+    //     canvas = editorState[`${type}_canvas`];
+    // }
     if (!nodownload) {
         const link = document.createElement('a');
         link.download = file;
@@ -1273,25 +1317,27 @@ function exportMask(file, nodownload=false) {
 function exportMinimap(nodownload=false) {
     const polygons = config.polygons;
     const width = 512, height = 256;//minimap texture size
-
-    // draw only minimap
-    // const canvas = document.createElement('canvas');
-    // canvas.width = 512;
-    // canvas.height = 256;
-    // const ctx = canvas.getContext('2d');
-    // const offset_x = 0, offset_y = 0;
-
-    // update gui.png
-    const offset_x = 4, offset_y = 4;
-    const img = Textures.get('gui').baseTexture.source;
     const canvas = document.createElement('canvas');
-    canvas.width = 1024;
-    canvas.height = 1024;
-    const ctx = canvas.getContext('2d');
-    // copy the bottom part of gui.png
-    ctx.drawImage(img, 
-        0, offset_y+height, 1024, 1024-offset_y-height, 
-        0, offset_y+height, 1024, 1024-offset_y-height);
+    let ctx, offset_x, offset_y;
+
+    if (game.renderer.constructor.name != 'PIXIRenderer') {
+        // draw only minimap
+        canvas.width = width;
+        canvas.height = height;
+        ctx = canvas.getContext('2d');
+        offset_x = 0, offset_y = 0;
+    } else {
+        // update gui.png
+        offset_x = 4, offset_y = 4;
+        const img = game.renderer.pixiImageByName['gui'].baseTexture.source;
+        canvas.width = 1024;
+        canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
+        // copy the bottom part of gui.png
+        ctx.drawImage(img, 
+            0, offset_y+height, 1024, 1024-offset_y-height, 
+            0, offset_y+height, 1024, 1024-offset_y-height);
+        }
 
     let h = 0, d = 0;
     for (let l=0; l<polygons.length; l++) {
@@ -1394,6 +1440,35 @@ function uuidv7() {
         .join("");
     return uuidStr;
 }
+
+window.upload_vanilla = async ()=>{
+    function imageToDataURL(url) {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = this.naturalWidth;
+                canvas.height = this.naturalHeight;
+                const context = canvas.getContext('2d');
+                context.drawImage(this, 0, 0);
+                const dataURL = canvas.toDataURL('image/png');
+                resolve(dataURL);
+            };
+            image.src = url;
+        });
+    }
+    set_token('a');
+    await upload_map_assets_helper(undefined, 0, PUBLIC_NAMESPACE);
+    for (const ship_id of [...new Array(6).keys()].slice(1)) {
+        const assets = SHIP_ASSETS.map((_,i)=>export_ship_asset(ship_id, i));
+        assets[1] = await imageToDataURL(`assets/aircraft/${config.ships[ship_id].name.replace('mohawk','comanche')}.png`);
+        assets[2] = await imageToDataURL(`assets/shadows/${config.ships[ship_id].name.replace('mohawk','comanche')}_shadow.png`);
+        upload_ship_assets(ship_id, assets, 0, PUBLIC_NAMESPACE);
+    }
+    set_token('');
+};
+window.test_copy = ()=>copy_assets('vanilla', '0', 'xxx');
+
 
 
 
@@ -1513,4 +1588,3 @@ function simplify(points, tolerance, highestQuality) {
 
     return points;
 }
-    

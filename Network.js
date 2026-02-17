@@ -1,4 +1,5 @@
 import Vector from './Vector.js';
+import { load_assets } from './assets.js';
 
 var primarySock = null,
     backupSock = null,
@@ -88,7 +89,7 @@ Network.force = function(repelMsg) {
         Mobs.network(mob, repelMsg.id);
     }
     let pos = new Vector(repelMsg.posX, repelMsg.posY);
-    Particles.spiritShockwave(pos);
+    game.renderer.particles_spirit_shockwave(pos);
     Sound.effectRepel(pos);
 };
 
@@ -414,8 +415,8 @@ var handleCustomMessage = function(msg) {
             game.server.config.mapId = parsedData.mapId;
             game.server.config.parentMapId = parsedData.parentMapId;
             game.server.config.mapVersion = parsedData.mapVersion;
-            Graphics.apply_bounds(game.server.config.mapBounds);
-            Graphics.load_assets({...game.server.config, ships: parsedData.ships});
+            game.renderer.apply_bounds(game.server.config.mapBounds);
+            load_assets({...game.server.config, ships: parsedData.ships});
             break;
         case 204:
             // editor
@@ -458,8 +459,8 @@ var handleServerConfigUpdate = function(data) {
         game.server.config.mapVersion = [0,0,0,0,0,0,0,0];
     
     if (config.ships) {
-        Graphics.apply_bounds(game.server.config.mapBounds);
-        Graphics.load_assets({...game.server.config, ships: config.ships});
+        game.renderer.apply_bounds(game.server.config.mapBounds);
+        load_assets({...game.server.config, ships: config.ships});
     } else
         UI.setupAircraft();//backwards compat with legacy servers
 }
@@ -1086,7 +1087,7 @@ let id_count = 0;
 let connections = [];
 
 function start_server(callback) {
-    const worker = new Worker((location.href.includes('localhost') ? 'js':'assets') + '/server.js?'+new Date().getTime(), { type: "module" });
+    const worker = new Worker('/server.js?'+new Date().getTime(), { type: "module" });
     const server = new Proxy(worker, {
         get(target, method) {
             const ret = Reflect.get(...arguments);

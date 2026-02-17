@@ -346,14 +346,14 @@ Sound.updateThruster = function(zeroIfPlayerOneIfMob, mobOrPlayer, isVisible) {
 };
 
 var getVolumeForCameraDistance = function(pos) {
-    var t = Graphics.getCamera(),
+    var t = game.renderer.cameraState.center,
         n = Tools.length(pos.x - t.x, pos.y - t.y),
         r = (game.halfScreenX / game.scale + game.halfScreenY / game.scale) / 2;
     return Tools.clamp(1.5 * (1 - n / r), 0, 1)
 };
 
 var getStereoDirection = function(pos) {
-    var t = Graphics.getCamera(),
+    var t = game.renderer.cameraState.center,
         n = pos.x - t.x,
         r = game.halfScreenX / game.scale;
     return Tools.clamp(.8 * n / r, -1, 1)

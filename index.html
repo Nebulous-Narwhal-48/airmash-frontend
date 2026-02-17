@@ -26,10 +26,64 @@
         a.c2 {position: absolute; display: inline-block; width: 200px; height: 50px; bottom: 80px; left: 50px; color: white;}
         div.c1 {display: inline-block; vertical-align: middle; width: 50px; height: 30px; margin-left: 10px; background-repeat: no-repeat; background-size: 100% auto; background-image: url("data:image/svg+xml;base64,PHN2ZyBjbGFzcz0ibWNhOGFlYzA0M19sb2dvIG1jODUwMDM4MDZfbG9nbyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgNTc4Ljg4IDI3My4xNiIgZGF0YS1yZWFjdGlkPSI2Ij48cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNTQxLjEzIDg1Ljc3YzIwLjgxIDAgMzcuNzUtMTcuMzUgMzcuNzUtMzguNjcgMC0yMC40Ny0xNy4yOS0zNy43NS0zNy43NS0zNy43NXMtMzcuNzUgMTcuMjktMzcuNzUgMzcuNzVjMCAyMS4zMiAxNi45MyAzOC42NyAzNy43NSAzOC42N3oiIGRhdGEtcmVhY3RpZD0iNyI+PC9wYXRoPjxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik01MDQuMDYgOTkuMzR2MTEwLjQ1bC0zNC03My44NGMxNS4zNy0xOS4yMyAyMS42My00Ni4zNiAyMi4zMy02NS44N3YtMTZoLTYwLjIzdjE1LjRjLS44NCAxOS42NC03LjIyIDI4LjgtMjQuNzggMzQuNTF2LTEwNGwtNjEuMjcuMDZ2NDQuMzFjLTIyLjMzLTIyLjc4LTUzLjE0LTM0Ljc4LTg5LjU2LTM0Ljc4LTM5Ljg3IDAtNzIuOSAxMy44MS05NS41IDM5LjkxYTExOC4wNSAxMTguMDUgMCAwIDAtMTcuMTIgMjYuMzNjLTE0LjgxLTE1LjIxLTM1LjQyLTIxLjctNTkuODktMjEuN2gtODR2MjE5LjA0aDU2di01Mi4yOGgyOGMyNC4zOSAwIDQ1LTguMTQgNTkuODgtMjMuNTRhMTE2LjMgMTE2LjMgMCAwIDAgMTcuNzEgMjcuMWMyMi42MiAyNS42MyA1NS40NCAzOS4xNCA5NC45MiAzOS4xNCAzOC42NCAwIDcxLTEzLjUgOTMuNjEtMzkuMDYgMS41Ny0xLjc3IDMuMDYtMy42MiA0LjUxLTUuNDhoNTIuNzF2LTU0LjM1bDguMDgtMS44NiAyNiA1Ni4yNEg1NzguMlY5OS4zNGgtNzQuMTR6bS00MTggNjMuODFINTUuOTh2LTUyLjcyaDI5LjI1YzcuNTggMCAyMC4yMyA1LjExIDIwLjIzIDI1LjMyLjA1IDEzLjAxLTUuMzMgMjcuNC0xOS4zNiAyNy40em0xNjkuOTIgNjAuMTRjLTQ3LjIzIDAtODUuNjUtMzkuMzctODUuNjUtODcuNzUgMC00Ni40MiAzOS4yMS04NS42NSA4NS42NS04NS42NXM4NS42NSAzOS4yMyA4NS42NSA4NS42NWMwIDQ4LjM4LTM4LjQyIDg3Ljc1LTg1LjY1IDg3Ljc1eiIgZGF0YS1yZWFjdGlkPSI4Ij48L3BhdGg+PHBhdGggZmlsbD0iI2ZmZmZmZiIgZD0iTTI1NS45NyAxNDEuODhjLTM3Ljg4IDAtNTcgNi42NS02NC45MyA4LjY5IDYuNjIgMzAuNDkgMzMuMjEgNTMuMzYgNjQuOTMgNTMuMzZzNTguMzItMjIuODcgNjQuOTMtNTMuMzZjLTcuODktMi4wNC0yNy4wNS04LjY5LTY0LjkzLTguNjl6IiBkYXRhLXJlYWN0aWQ9IjkiPjwvcGF0aD48L3N2Zz4K");}
         </style>
+        <link href="assets/style.css" rel="stylesheet">
         <script src="assets/jquery.min.js"></script>
-        <script src="assets/pixi.js"></script>
         <script src="assets/nipplejs.js"></script>
         <script src="assets/howler.js"></script>
+        <script src="assets/pixi.js"></script>
+        <script type="module" src="proximity_chat.js" defer></script>
+        <script type="module">
+            "use strict";
+
+            import './Game.js';
+            import './Games.js';
+            import './editor.js';
+            import './Input.js';
+            import './Mobs.js';
+            import './Network.js';
+            import './Players.js';
+            import './Sound.js';
+            import './Tools.js';
+            import './UI.js';
+
+            const randomize = location.href.includes('randomize');
+
+            if (randomize) {
+                function randomIntFromInterval(min, max) { // min and max included 
+                    return Math.floor(Math.random() * (max - min + 1) + min)
+                }
+                function makeid(length) {
+                    let result = '';
+                    //const characters = ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                    //const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
+                    const characters = 'abcdef0123456789';
+                    const charactersLength = characters.length;
+                    let counter = 0;
+                    while (counter < length) {
+                        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+                        counter += 1;
+                    }
+                    return result;
+                }
+
+                const flags = Object.keys(window.CountryNames).filter(x=>!(["COMMUNIST", "CONFEDERATE", "IMPERIAL", "JOLLY", "RAINBOW"].includes(x)));
+
+                window.config.settings = {
+                    "id": makeid(16),
+                    "sound":false,
+                    "name": randomize ? makeid(randomIntFromInterval(2, 5)) : undefined,
+                    "region":"dev",
+                    "helpshown":true,
+                    "scalingFactor":2500,
+                    "flag": randomize ? flags[randomIntFromInterval(0, flags.length-1)].toLowerCase() : undefined,
+                };
+                Tools.applySettingsToGame();
+                Tools.loadSettings = () => {};
+
+                //game.customServerUrl = 'ws://188.245.223.182:3501';
+            }
+
+        </script>
     </head>
     <body>
         <noscript>

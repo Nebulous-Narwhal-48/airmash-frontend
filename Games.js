@@ -26,13 +26,13 @@ let ctf = {};
 let conquest = {};
 const blue_color = 0x4076E2, red_color = 0xEA4242;
 
-let firewallSprites = {};
-let minimapFirewallMask = null;
-let minimapFirewallVisible = false;
 let firewall = {
     radius: 0,
     pos: Vector.zero(),
-    speed: 0
+    speed: 0,
+    firewallSprites: {},
+    minimapFirewallMask: null,
+    minimapFirewallVisible: false,
 };
 
 let unlockedFeature = {};
@@ -40,6 +40,8 @@ let unlockedFeature = {};
 const loginOrigin = 'https://login.airmash.online';
 let loginIdentityProvider = 0;
 let loginNonce = null;
+
+Games.ctf = ctf;
 
 Games.setup = function() {
     $('#open-menu').on('click', function(event) {
@@ -385,7 +387,7 @@ Games.switchGame = function() {
     game.server = {};
     game.state = Network.STATE.CONNECTING;
     Network.shutdown();
-    Particles.wipe();
+    game.renderer.wipe_particles();
     Players.wipe();
     Mobs.wipe();
     UI.reconnection();
@@ -482,115 +484,21 @@ Games.prep = function() {
             };
 
             const bar_width = 200, bar_height = 8;
-            conquest.red_bar = createProgressbar(red_color, 1, bar_width, bar_height);
-            conquest.blue_bar = createProgressbar(blue_color, -1, bar_width, bar_height);
-            updateProgressbar(conquest.red_bar, 0);
-            updateProgressbar(conquest.blue_bar, 0);
+            conquest.red_bar = game.renderer.add_progressbar(red_color, 1, bar_width, bar_height);
+            conquest.blue_bar = game.renderer.add_progressbar(blue_color, -1, bar_width, bar_height);
+            game.renderer.update_progressbar(conquest.red_bar, 0);
+            game.renderer.update_progressbar(conquest.blue_bar, 0);
             break;
 
         case GameType.EDITOR:
             prepEditor();
             break;
-    }    
+    }
 };
-    
-function createControlpoint(name, [x, y], [x1, y1], width, debug) {
-    const w = debug ? 600 : width;
-    const halfwidth = w/2;
-
-    let doodad_field = Textures.init("doodadField", { position: [x, y], scale: 0.5});
-
-    const texture = PIXI.RenderTexture.create(w, w);
-
-    const line = new PIXI.Graphics();
-    //line.pivot.set(halfwidth, halfwidth);
-    if (debug)
-        line.position.set(halfwidth-width/2, halfwidth-width/2);
-
-    const label = new PIXI.Text(name, new PIXI.TextStyle({fill:0xffffff}));
-    label.anchor.set(0.5, 0.5);
-    label.position.set(halfwidth, halfwidth);
-
-    const circle = new PIXI.Graphics();
-    circle.lineStyle(2, 0xFFFFFF, 1);
-    circle.beginFill(0xffffff, 0);
-    circle.drawCircle(halfwidth, halfwidth, halfwidth);
-    circle.endFill();
-
-    const obj = new PIXI.Container();
-    obj.addChild(line);
-    obj.addChild(label);
-    if (debug)
-        obj.addChild(circle);
-
-    const big = new PIXI.Sprite(texture);
-    big.anchor.set(0.5, 0.5);
-    big.x = x;
-    big.y = y;
-    game.graphics.layers.fields.addChild(big);
-
-    const ui = new PIXI.Container();
-    const ui_bg = new PIXI.Sprite(PIXI.Texture.WHITE);
-    ui_bg.width = w;
-    ui_bg.height = w;
-    ui_bg.tint = 0x000000;
-    ui_bg.alpha = 0.2;
-    ui.addChild(ui_bg);
-    const _ui = new PIXI.Sprite(texture);
-    //ui.x = x1;
-    ui.y = y1;
-    ui.scale.set(0.4);
-    ui.addChild(_ui);
-    game.graphics.layers.ui0.addChild(ui);
-    
-    const minimap = new PIXI.Sprite(texture);
-    minimap.anchor.set(0.5, 0.5);
-    minimap.scale.set(0.3);
-    game.graphics.layers.ui2.addChild(minimap);
-    Graphics.minimapMob(minimap, x, y);   
-    
-    return {texture, obj, big, line, label, circle, ui, width, minimap, doodad_field, mapId:game.server.config.mapId};
-}
-
-function createProgressbar(color, direction, width, height) {
-    const mask = new PIXI.Sprite(PIXI.Texture.WHITE);
-    mask.width = width;
-    mask.height = height;
-
-    const container = new PIXI.Container();
-    game.graphics.layers.ui0.addChild(container);
-    container.pivot.set(width/2, height/2);
-    //container.x = Math.round(game.halfScreenX + direction*x_offset);
-    container.y = 50;
-    container.mask = mask;
-    container.addChild(mask);
-
-    const shadow = new PIXI.Sprite(PIXI.Texture.WHITE);
-    shadow.tint = 0x000000;
-    shadow.alpha = 0.2;
-    shadow.width = width;
-    shadow.height = height;
-    container.addChild(shadow);
-
-    const p = new PIXI.Sprite(PIXI.Texture.WHITE);
-    p.tint = color;
-    p.width = width;
-    p.height = height;
-    container.addChild(p);
-
-    return {container, p, direction, width};
-}
-
-function updateProgressbar({p, direction, width}, perc) {
-    if (direction > 0)
-        p.position.set(width - (perc*width), 0);
-    else
-        p.position.set(-width + (perc*width), 0);
-}
 
 Games.wipe = function() {
     // Clear BTR firewall
-    removeFirewall();
+    game.renderer.removeFirewall(firewall);
 
     // If exists, clear all CTF graphics
     removeCtfObjects();
@@ -604,25 +512,11 @@ Games.wipe = function() {
 
 function removeCtfObjects() {
     if (ctf.flagRed) {
-        game.graphics.layers.flags.removeChild(ctf.flagRed.sprite);
-        game.graphics.layers.shadows.removeChild(ctf.flagRed.spriteShadow);
-        game.graphics.layers.ui3.removeChild(ctf.flagRed.minimapSprite);
-        game.graphics.layers.ui2.removeChild(ctf.flagRed.minimapBase);
-        ctf.flagRed.sprite.destroy();
-        ctf.flagRed.spriteShadow.destroy();
-        ctf.flagRed.minimapSprite.destroy();
-        ctf.flagRed.minimapBase.destroy();
+        game.renderer.remove_ctf_flag(ctf.flagRed);
         ctf.flagRed = null;
     }
     if (ctf.flagBlue) {
-        game.graphics.layers.flags.removeChild(ctf.flagBlue.sprite);
-        game.graphics.layers.shadows.removeChild(ctf.flagBlue.spriteShadow);
-        game.graphics.layers.ui3.removeChild(ctf.flagBlue.minimapSprite);
-        game.graphics.layers.ui2.removeChild(ctf.flagBlue.minimapBase);
-        ctf.flagBlue.sprite.destroy();
-        ctf.flagBlue.spriteShadow.destroy();
-        ctf.flagBlue.minimapSprite.destroy();
-        ctf.flagBlue.minimapBase.destroy();
+        game.renderer.remove_ctf_flag(ctf.flagBlue);
         ctf.flagBlue = null;
     }
 }
@@ -630,24 +524,13 @@ function removeCtfObjects() {
 function removeConquestObjects(isMapChange) {
     if (conquest.zones) {
         for (let cp of conquest.zones) {
-            game.graphics.layers.fields.removeChild(cp.big);
-            cp.big.destroy();
-            game.graphics.layers.ui0.removeChild(cp.ui);
-            cp.ui.destroy();
-            game.graphics.layers.ui2.removeChild(cp.minimap);
-            cp.minimap.destroy();
-
-            game.graphics.layers.fields.removeChild(cp.doodad_field);
-            cp.doodad_field.destroy();
-
+            game.renderer.remove_controlpoint(cp);
         }
         conquest.zones = [];
 
         if (!isMapChange) {
-            game.graphics.layers.ui0.removeChild(conquest.red_bar.container);
-            conquest.red_bar.container.destroy();
-            game.graphics.layers.ui0.removeChild(conquest.blue_bar.container);
-            conquest.blue_bar.container.destroy();
+            game.renderer.remove_progressbar(conquest.red_bar);
+            game.renderer.remove_progressbar(conquest.blue_bar);
         }
     }
 }
@@ -680,7 +563,7 @@ Games.networkControlpoint = function(msg) {
         // if (conquest.zones.length !== msg.id) throw "assert";
         const width = 56;
         const i = msg.id;
-        conquest.zones[i] = createControlpoint("ABCDEFGH"[i], [msg.posX, msg.posY], [0, 40],  width);
+        conquest.zones[i] = game.renderer.add_controlpoint("ABCDEFGH"[i], [msg.posX, msg.posY], [0, 40],  width);
 
         Games.update(true);
     }
@@ -693,7 +576,7 @@ Games.networkControlpoint = function(msg) {
         [zone.team, zone.progress, zone.netplayers] = [0, 0, 0];
         if (msg.type === 98) {
             conquest.score_blue = 0;
-            conquest.score_red = 0;            
+            conquest.score_red = 0;
         }
     } else if (msg.type === 99) {
         [, conquest.score_blue, conquest.score_red] = readIntegers(msg.posX);
@@ -726,21 +609,10 @@ Games.networkFlag = function(msg) {
             momentum: 0,
             position: Vector.zero(),
             basePos: new Vector(msg.posX+2, msg.posY-4), //exploit the fact that (at start and when map changed) base pos = flag pos (config.objects.bases is not yet loaded)
-            sprite: Textures.init('ctfFlagRed', {
-                scale: 0.4,
-                visible: false
-            }),
-            spriteShadow: Textures.init('ctfFlagShadow', {
-                scale: 0.4 * 1.1,
-                visible: false
-            }),
-            minimapSprite: Textures.init('minimapFlagRed'),
-            minimapBase: Textures.init('minimapBaseRed')
+            ...game.renderer.add_ctf_flag('Red')
         };
-        if (game.gameType == GameType.FFA || game.gameType == GameType.EDITOR)
-            ctf.flagRed.minimapBase.visible = false;
         if (game.gameType == GameType.CTF)
-            Graphics.minimapMob(ctf.flagRed.minimapBase, ctf.flagRed.basePos.x, ctf.flagRed.basePos.y);
+            game.renderer.updateMinimapMob(ctf.flagRed.minimapBase, ctf.flagRed.basePos.x, ctf.flagRed.basePos.y);
     }
     if (msg.flag == BLUE && !ctf.flagBlue) {
         ctf.flagBlue = {
@@ -752,21 +624,10 @@ Games.networkFlag = function(msg) {
             momentum: 0,
             position: Vector.zero(),
             basePos: new Vector(msg.posX+1, msg.posY-1),
-            sprite: Textures.init('ctfFlagBlue', {
-                scale: 0.4,
-                visible: false
-            }),
-            spriteShadow: Textures.init('ctfFlagShadow', {
-                scale: 0.4 * 1.1,
-                visible: false
-            }),
-            minimapSprite: Textures.init('minimapFlagBlue'),
-            minimapBase: Textures.init('minimapBaseBlue')
+            ...game.renderer.add_ctf_flag('Blue')
         };
-        if (game.gameType == GameType.FFA || game.gameType == GameType.EDITOR)
-            ctf.flagBlue.minimapBase.visible = false;
         if (game.gameType == GameType.CTF)
-            Graphics.minimapMob(ctf.flagBlue.minimapBase, ctf.flagBlue.basePos.x, ctf.flagBlue.basePos.y);
+            game.renderer.updateMinimapMob(ctf.flagBlue.minimapBase, ctf.flagBlue.basePos.x, ctf.flagBlue.basePos.y);
     }
 
     // Check if this is a blue (1) or red (2) team flag
@@ -782,26 +643,12 @@ Games.networkFlag = function(msg) {
         flagCaptures = msg.redteam;
     }
 
-    // Common values for flag display
-    flag.momentum = 0;
-    flag.direction = 1;
-    flag.sprite.scale.x = 0.4;
-    flag.sprite.rotation = 0;
-    flag.spriteShadow.scale.x = 0.4 * 1.1;
-    flag.spriteShadow.rotation = 0;
-
     // Team score (successful flag captures)
     let html = `<span class="rounds">${flagCaptures}<span class="divider">/</span>3</span>`;
 
     if (msg.type == 1) {
         // Flag is not being carried
         flag.playerId = null;
-        flag.position.x = msg.posX;
-        flag.position.y = msg.posY;
-        flag.sprite.position.set(msg.posX, msg.posY);
-        let shadow = Graphics.shadowCoords(new Vector(msg.posX,msg.posY));
-        flag.spriteShadow.position.set(shadow.x, shadow.y),
-        Graphics.minimapMob(flag.minimapSprite, msg.posX, msg.posY);
         $(selector).html(html);
     } else {
         // Flag is being carried
@@ -820,74 +667,16 @@ Games.networkFlag = function(msg) {
         $(selector).html(html);
     }
 
-    updateCtfFlag(flag, false);
+    if (msg?.type == 1) {
+        // Flag is not being carried
+        flag.position.x = msg.posX;
+        flag.position.y = msg.posY;
+    } else {
+        // Flag is being carried
+    }
+    game.renderer.update_ctf_flag(flag, false, msg);
 
     game.flagEnabled = true;
-};
-
-var updateCtfFlag = function(flag, isResize) {
-    // If window is being resized, redraw minimap
-    if(isResize && game.flagEnabled) {
-        Graphics.minimapMob(flag.minimapSprite, flag.position.x, flag.position.y);
-        if (game.gameType == GameType.CTF)
-            Graphics.minimapMob(flag.minimapBase, flag.basePos.x, flag.basePos.y);
-    }
-
-    if(flag.playerId != null) {
-        // Flag is being carried
-        let carrier = Players.get(flag.playerId);
-        if (carrier != null) {
-            // Flag visibility must match visibility of flag carrier player (i.e. are they on-screen?)
-            if(carrier.render != flag.visible) {
-                flag.visible = carrier.render;
-                flag.sprite.visible = carrier.render;
-                flag.spriteShadow.visible = carrier.render;
-
-                if(carrier.render) {
-                    flag.momentum = 0;
-                    flag.direction = 1;
-                    flag.diffX = carrier.pos.x;
-                }
-            }
-
-            // Accuracy of flag minimap position depends on whether flag carrier player is visible
-            if(carrier.render) {
-                Graphics.minimapMob(flag.minimapSprite, carrier.pos.x, carrier.pos.y);
-            } else {
-                Graphics.minimapMob(flag.minimapSprite, carrier.lowResPos.x, carrier.lowResPos.y);
-            }
-        }
-
-        // Display flag if flag carrier player is visible
-        if(flag.visible) {
-            flag.position.x = carrier.pos.x;
-            flag.position.y = carrier.pos.y;
-            flag.sprite.position.set(carrier.pos.x, carrier.pos.y);
-
-            let shadow = Graphics.shadowCoords(carrier.pos);
-            flag.spriteShadow.position.set(shadow.x, shadow.y),
-
-            flag.momentum = Tools.clamp(flag.momentum + (carrier.pos.x - flag.diffX) * game.timeFactor, -40, 40);
-            let directionModifier = flag.momentum > 0 ? 0.1 : -0.1;
-            flag.direction = Tools.clamp(flag.direction - directionModifier * game.timeFactor, -0.4, 0.4);
-            flag.sprite.scale.x = flag.direction;
-            flag.spriteShadow.scale.x = 1.1 * flag.direction;
-
-            let rotation = 0.04 * -(carrier.pos.x - flag.diffX) * game.timeFactor;
-            flag.sprite.rotation = rotation;
-            flag.spriteShadow.rotation = rotation;
-
-            flag.diffX = carrier.pos.x;
-        }
-    } else {
-        // Flag is not being carried, display if on-screen
-        let isVisible = Graphics.inScreen(flag.position, 128);
-        if(isVisible != flag.visible) {
-            flag.visible = isVisible;
-            flag.sprite.visible = isVisible;
-            flag.spriteShadow.visible = isVisible;
-        }
-    }
 };
 
 /**
@@ -1022,197 +811,22 @@ Games.showLevelUp = function(level) {
 };
 
 /**
- * Update firewall sprites and minimap mask
- */
-Games.popFirewall = function(firewallPosition, firewallRadius) {
-    if (firewallRadius <= 0) {
-        firewallRadius = 0;
-    }
-
-    // Create Graphics object for firewall minimap mask if it doesn't already exist
-    if (!minimapFirewallVisible) {
-        minimapFirewallVisible = true;
-        minimapFirewallMask = new PIXI.Graphics;
-        game.graphics.gui.minimap.mask = minimapFirewallMask;
-    }
-
-    // Draw firewall mask on minimap
-    minimapFirewallMask.clear();
-    minimapFirewallMask.beginFill(0xFFFFFF);
-    minimapFirewallMask.drawCircle(
-        game.screenX - config.minimapPaddingX - config.minimapSize * (16384 - firewallPosition.x) / 32768, 
-        game.screenY - config.minimapPaddingY - config.minimapSize / 2 * (8192 - firewallPosition.y) / 16384, 
-        2 * firewallRadius / (256 / config.minimapSize * 256));
-    minimapFirewallMask.endFill();
-
-    // Calculate extent of firewall sprite grid
-    let horizonalSpriteCount = Math.ceil((game.halfScreenX + 64) / game.scale / 64);
-    let verticalSpriteCount =  Math.ceil((game.halfScreenY + 64) / game.scale / 64);
-    let activeSprites = {};
-
-    // Coordinates of the visible border
-    let camera = Graphics.getCamera();
-    let upperLeft =  new Vector(camera.x - game.halfScreenX / game.scale - 64, camera.y - game.halfScreenY / game.scale - 64);
-    let upperRight = new Vector(camera.x + game.halfScreenX / game.scale + 64, camera.y - game.halfScreenY / game.scale - 64);
-    let lowerLeft =  new Vector(camera.x - game.halfScreenX / game.scale - 64, camera.y + game.halfScreenY / game.scale + 64);
-    let lowerRight = new Vector(camera.x + game.halfScreenX / game.scale + 64, camera.y + game.halfScreenY / game.scale + 64);
-
-    // Check if any part of the firewall is currently visible
-    if (Tools.distance(firewallPosition.x, firewallPosition.y, upperLeft.x, upperLeft.y) > firewallRadius || 
-        Tools.distance(firewallPosition.x, firewallPosition.y, upperRight.x, upperRight.y) > firewallRadius ||
-        Tools.distance(firewallPosition.x, firewallPosition.y, lowerLeft.x, lowerLeft.y) > firewallRadius || 
-        Tools.distance(firewallPosition.x, firewallPosition.y, lowerRight.x, lowerRight.y) > firewallRadius) {
-        
-        // Iterate over firewall sprite grid
-        for (let x = -horizonalSpriteCount; x <= horizonalSpriteCount; x++) {
-            for (let y = -verticalSpriteCount; y <= verticalSpriteCount; y++) {
-                let posX = 64 * (Math.floor(camera.x / 64) + 0.5) + 64 * x;
-                let posY = 64 * (Math.floor(camera.y / 64) + 0.5) + 64 * y;
-                let distance = Tools.distance(posX, posY, firewallPosition.x, firewallPosition.y)
-
-                // If position is outside of firewall radius then we display the hot smoke
-                if (distance >= firewallRadius) {
-                    let name = `${posX}_${posY}`;
-                    activeSprites[name] = true;
-
-                    // Create firewall sprite for this position if it doesn't already exist
-                    if (firewallSprites[name] == null)
-                    {
-                        let sprite = Textures.sprite(`hotsmoke_${Tools.randInt(1, 4)}`);
-
-                        sprite.scale.set(Tools.rand(1.5, 2.5));
-                        sprite.anchor.set(0.5, 0.5);
-                        sprite.position.set(posX, posY);
-                        let maxOpacity = 1;
-                        if (Tools.rand(0, 1) > 0.5) {
-                            sprite.blendMode = PIXI.BLEND_MODES.ADD;
-                            maxOpacity = 0.5;
-                        }
-
-                        game.graphics.layers.powerups.addChild(sprite);
-
-                        firewallSprites[name] = {
-                            sprite: sprite,
-                            rotation: Tools.rand(0, 100),
-                            rotationSpeed: Tools.rand(-0.0025, 0.0025),
-                            opacity: 0,
-                            maxOpacity: maxOpacity,
-                            opacitySpeed: distance - firewallRadius >= 64 ? 0.02 : 0.0035,
-                            color: Tools.rand(0, 1),
-                            colorDir: Tools.rand(0, 1) < 0.5 ? -1 : 1
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    for (let name in firewallSprites) {
-        if (activeSprites[name]) {
-            // Animate sprite by varying its display properties
-            firewallSprites[name].rotation += firewallSprites[name].rotationSpeed * game.timeFactor;
-            firewallSprites[name].opacity += firewallSprites[name].opacitySpeed * game.timeFactor;
-            if (firewallSprites[name].opacity > firewallSprites[name].maxOpacity) {
-                firewallSprites[name].opacity = firewallSprites[name].maxOpacity
-            }
-            firewallSprites[name].color += 0.005 * firewallSprites[name].colorDir * game.timeFactor;
-            if (firewallSprites[name].color < 0) {
-                firewallSprites[name].colorDir = 1;
-            }
-            if (firewallSprites[name].color > 1) {
-                firewallSprites[name].colorDir = -1;
-            }
-
-            // Apply properties to sprite
-            firewallSprites[name].sprite.rotation = firewallSprites[name].rotation;
-            firewallSprites[name].sprite.alpha = firewallSprites[name].opacity;
-            firewallSprites[name].sprite.tint = Tools.colorLerp(0xFAA806, 0xFA4F06, firewallSprites[name].color);
-        }
-        else {
-            // Remove this firewall sprite
-            game.graphics.layers.powerups.removeChild(firewallSprites[name].sprite);
-            firewallSprites[name].sprite.destroy();
-            delete firewallSprites[name];
-        }
-    }
-};
-
-/**
- * Remove all BTR firewall sprites and minimap mask
- */
-var removeFirewall = function() {
-    if (minimapFirewallVisible) {
-        for (let name in firewallSprites) {
-            game.graphics.layers.powerups.removeChild(firewallSprites[name].sprite),
-            firewallSprites[name].sprite.destroy();
-        }
-
-        firewallSprites = {};
-
-        game.graphics.gui.minimap.mask = null;
-
-        if (minimapFirewallMask) {
-            minimapFirewallMask.destroy();
-            minimapFirewallMask = null;
-        }
-
-        minimapFirewallVisible = false;
-    }
-};
-
-/**
  * GAME_FIREWALL message handler
  */
 Games.handleFirewall = function(msg) {
     if (msg.status == 0) {
-        removeFirewall();
+        game.renderer.removeFirewall(firewall);
+        //removeFirewall();
     }
     else {
         firewall.radius = msg.radius;
         firewall.pos.x = msg.posX;
         firewall.pos.y = msg.posY;
         firewall.speed = msg.speed;
-        Games.popFirewall(firewall.pos, firewall.radius);
+        game.renderer.popFirewall(firewall, firewall.pos, firewall.radius);
+        //Games.popFirewall(firewall.pos, firewall.radius);
     }
 };
-
-function drawControlpoint(cp, end_progress) {
-    const line = cp.line;
-    const width = cp.width;
-    const square8th = width/2;
-    const total8th = end_progress/8;
-    const total4th = end_progress/4;
-    const factor = square8th/total8th;
-    let p = Math.abs(cp.progress);
-    line.clear();
-    if (p > 0) {
-        line.lineStyle(10, cp.progress > 0 ? red_color : blue_color, 1);
-        line.moveTo(square8th, 0);
-        if (p >= 0)
-        line.lineTo(square8th+Math.min(square8th, p*factor), 0);
-        p -= total8th;
-        if (p >= 0)
-        line.lineTo(width, Math.min(width, p*factor));
-        p -= total4th;
-        if (p >= 0)
-        line.lineTo(width-Math.min(width, p*factor), width);
-        p -= total4th;
-        if (p >= 0)
-        line.lineTo(0, width-Math.min(width, p*factor));
-        p -= total4th;
-        if (p >= 0)
-        line.lineTo(Math.min(square8th, p*factor), 0);  
-    }
-
-    if (cp.team === 0)
-        cp.label.tint = 0xffffff;
-    else if (cp.team === 1)
-        cp.label.tint = blue_color;
-    else if (cp.team === 2)
-        cp.label.tint = red_color;
-
-    Graphics.renderer.render(cp.obj, cp.texture, true);
-}
 
 /**
  * Frame update handler
@@ -1221,78 +835,78 @@ Games.update = function(isResize) {
     switch (game.gameType) {
         case GameType.CTF:
             if (ctf.flagBlue) {
-                updateCtfFlag(ctf.flagBlue, isResize);
+                game.renderer.update_ctf_flag(ctf.flagBlue, isResize);
             }
             if (ctf.flagRed) {
-                updateCtfFlag(ctf.flagRed, isResize);
+                game.renderer.update_ctf_flag(ctf.flagRed, isResize);
             }
             break;
         case GameType.BTR:
-            if (minimapFirewallVisible) {
+            if (firewall.minimapFirewallVisible) {
                 firewall.radius += firewall.speed / 60 * game.timeFactor;
-                Games.popFirewall(firewall.pos, firewall.radius);
+                game.renderer.popFirewall(firewall, firewall.pos, firewall.radius);
             }
             break;
-            case GameType.FFA:
-                if (ctf.flagBlue) 
-                    updateCtfFlag(ctf.flagBlue, isResize);
-                if (ctf.flagRed)
-                    updateCtfFlag(ctf.flagRed, isResize);
-                break;
-            case GameType.CONQUEST:
-                if (config.manifest.mapId == game.server.config.mapId) {
-                    const END_SCORE = config.extra?.conquest_end_score || 60*60*10;
-                    const END_PROGRESS = config.extra?.conquest_end_progress || 600;
+        case GameType.FFA:
+            if (ctf.flagBlue) 
+                game.renderer.update_ctf_flag(ctf.flagBlue, isResize);
+            if (ctf.flagRed)
+                game.renderer.update_ctf_flag(ctf.flagRed, isResize);
+            break;
+        case GameType.CONQUEST:
+            if (config.manifest.mapId == game.server.config.mapId) {
+                const END_SCORE = config.extra?.conquest_end_score || 60*60*10;
+                const END_PROGRESS = config.extra?.conquest_end_progress || 600;
+            
+                let timeFrac = game.timeFactor;
+
+                if (this.reducedFactor !== false) {
+                    timeFrac -= this.reducedFactor;
+                    this.reducedFactor = false;
+                }
                 
-                    let timeFrac = game.timeFactor;
-    
-                    if (this.reducedFactor !== false) {
-                        timeFrac -= this.reducedFactor;
-                        this.reducedFactor = false;
-                    }
-                    
-                    if (timeFrac > 0) {
-                        const roundedFrames = timeFrac > .51 ? Math.round(timeFrac) : 1;
-                        const perLoopEffect = timeFrac / roundedFrames;
-                        for (let cp of conquest.zones) {
-                            for (let i = 0; i < roundedFrames; i++) {
-                                if (cp.team === 1)
-                                    conquest.score_blue += perLoopEffect * 1;
-                                else if (cp.team === 2)
-                                    conquest.score_red += perLoopEffect * 1;
-                                if (conquest.score_blue > END_SCORE)
-                                    conquest.score_blue = END_SCORE;
-                                if (conquest.score_red > END_SCORE)
-                                    conquest.score_red = END_SCORE;
-                                updateProgressbar(conquest.blue_bar, conquest.score_blue/END_SCORE);
-                                updateProgressbar(conquest.red_bar, conquest.score_red/END_SCORE);
-    
-                                cp.progress += perLoopEffect * 1 * Math.sign(cp.netplayers);
-                                if (cp.progress > END_PROGRESS)
-                                    cp.progress = END_PROGRESS;
-                                if (cp.progress < -END_PROGRESS)
-                                    cp.progress = -END_PROGRESS;
-                                drawControlpoint(cp, END_PROGRESS);
-                            }  
-                        }              
+                if (timeFrac > 0) {
+                    const roundedFrames = timeFrac > .51 ? Math.round(timeFrac) : 1;
+                    const perLoopEffect = timeFrac / roundedFrames;
+                    for (let cp of conquest.zones) {
+                        for (let i = 0; i < roundedFrames; i++) {
+                            if (cp.team === 1)
+                                conquest.score_blue += perLoopEffect * 1;
+                            else if (cp.team === 2)
+                                conquest.score_red += perLoopEffect * 1;
+                            if (conquest.score_blue > END_SCORE)
+                                conquest.score_blue = END_SCORE;
+                            if (conquest.score_red > END_SCORE)
+                                conquest.score_red = END_SCORE;
+                            game.renderer.update_progressbar(conquest.blue_bar, conquest.score_blue/END_SCORE);
+                            game.renderer.update_progressbar(conquest.red_bar, conquest.score_red/END_SCORE);
+
+                            cp.progress += perLoopEffect * 1 * Math.sign(cp.netplayers);
+                            if (cp.progress > END_PROGRESS)
+                                cp.progress = END_PROGRESS;
+                            if (cp.progress < -END_PROGRESS)
+                                cp.progress = -END_PROGRESS;
+                            game.renderer.update_controlpoint(cp, END_PROGRESS);
+                        }
                     }
                 }
-                if(isResize && conquest.zones?.length) {
-                    const space = conquest.zones.length * 25;
-                    let ui_x = Math.round(game.halfScreenX - space/2);
-                    for (let i=0; i<conquest.zones.length; i++) {
-                        const cp = conquest.zones[i];
-                        cp.ui.x = ui_x;
-                        ui_x += 30;
-    
-                        Graphics.minimapMob(cp.minimap, cp.big.x, cp.big.y);
-                    }
-                    const bar_width = 200, bar_margin = 20;
-                    const x_offset = bar_width/2 + Math.abs(space/2) + bar_margin
-                    conquest.red_bar.container.x = Math.round(game.halfScreenX + x_offset);
-                    conquest.blue_bar.container.x = Math.round(game.halfScreenX - x_offset);            
+            }
+            if(isResize && conquest.zones?.length) {
+                const space = conquest.zones.length * 25;
+                let ui_x = Math.round(game.halfScreenX - space/2);
+                for (let i=0; i<conquest.zones.length; i++) {
+                    const cp = conquest.zones[i];
+                    cp.ui.x = ui_x;
+                    ui_x += 30;
+
+                    game.renderer.updateMinimapMob(cp.minimap, cp.big.x, cp.big.y);
                 }
-                break;
+                const bar_width = 200, bar_margin = 20;
+                const x_offset = bar_width/2 + Math.abs(space/2) + bar_margin
+                conquest.red_bar.container.x = Math.round(game.halfScreenX + x_offset);
+                conquest.blue_bar.container.x = Math.round(game.halfScreenX - x_offset);            
+            }
+            break;
     }
 };
 

@@ -1,4 +1,3 @@
-import './Constants.js';
 import Vector from './Vector.js';
 import Mob from './Mob.js';
 
@@ -17,10 +16,27 @@ Mobs.add = function (netmob, network, ownerId) {
 };
 
 Mobs.update = function () {
-    var t, n;
-    for (t in mobs)
-        (n = mobs[t]).update(game.timeFactor),
-            n.forDeletion ? Mobs.destroy(n) : n.updateGraphics(game.timeFactor)
+    const visible_mobs = [], visible_mobs_count = {missiles:0, crates:0};
+    var t;
+    for (t in mobs) {
+        const mob = mobs[t];
+        mob.update(game.timeFactor);
+        if (mob.forDeletion) {
+            Mobs.destroy(mob);
+        } else {
+            mob.updateGraphics(game.timeFactor);
+            if (mob.visibility) {
+                if (window.MissileMobTypeSet[mob.type]) {
+                    visible_mobs_count.missiles++;
+                } else if (window.CrateMobTypeSet[mob.type])
+                    visible_mobs_count.crates++;
+                else
+                    throw `assert ${mob.type}`;
+                visible_mobs.push(mob);
+            }
+        }
+    }
+    return {visible_mobs, visible_mobs_count};
 };
 
 Mobs.network = function (netmob, ownerId) {
@@ -50,14 +66,14 @@ Mobs.explosion = function (pos, mobType) {
         case MobType.TornadoSingleMissile:
         case MobType.TornadoTripleMissile:
         case MobType.ProwlerMissile:
-            Particles.explosion(pos, Tools.rand(1, 1.2));
+            game.renderer.particles_explosion(pos, Tools.rand(1, 1.2));
             break;
         case MobType.GoliathMissile:
-            Particles.explosion(pos, Tools.rand(1.3, 1.6));
+            game.renderer.particles_explosion(pos, Tools.rand(1.3, 1.6));
             break;
         case MobType.MohawkMissile:
         case MobType.CarrotMissile:
-            Particles.explosion(pos, Tools.rand(.8, 1))
+            game.renderer.particles_explosion(pos, Tools.rand(.8, 1))
     }
     Sound.mobExplosion(pos, mobType)
 };
@@ -106,20 +122,8 @@ Mobs.setupDoodads = function () {
 
 Mobs.addDoodad = function (doodad, id=null, visible=false) {
     var isInteger = Number.isInteger(doodad[2]);
-    var texture = Textures.init((isInteger ? "mountain" : "") + doodad[2]);
-    texture.scale.set(doodad[3]);
-    texture.position.set(doodad[0], doodad[1]);
-    texture.visible = visible;
-    if(doodad[4]) {
-        texture.rotation = doodad[4];
-    }
-    if(doodad[5]) {
-        texture.alpha = doodad[5];
-    }
-    if(doodad[6]) {
-        texture.tint = doodad[6];
-    }
     doodad[7] = visible;
+    const texture = game.renderer.add_doodad(doodad);
     doodad[8] = texture;
     doodad[9] = isInteger ? 0 : 1;
     if (id === null) {
@@ -148,20 +152,20 @@ Mobs.getDoodadAtCoord = function(x, y, doodad_type) {
 };
 
 Mobs.updateDoodads = function () {
-    for (var e, r = Tools.getBucketBounds(Graphics.getCamera(), 512 + game.halfScreenX / game.scale, 512 + game.halfScreenY / game.scale), i = r[0]; i <= r[1]; i++) {
+    for (var e, r = Tools.getBucketBounds(game.renderer.cameraState.center, 512 + game.halfScreenX / game.scale, 512 + game.halfScreenY / game.scale), i = r[0]; i <= r[1]; i++) {
         for (var o = r[2]; o <= r[3]; o++) {
             for (var s = 0; s < game.buckets[i][o][0].length; s++) {
                 const doodadId = game.buckets[i][o][0][s];
                 e = loadedDoodads[doodadId];
-                const [x, y, textureNameOrId, scale,,,,,sprite, is_not_mountain] = e;
-                if (game.state == Network.STATE.LOGIN && !is_not_mountain || Graphics.inScreen(new Vector(x, y), 256 * scale + config.overdraw)) {
+                const [x, y, textureNameOrId, scale, rotation,,,,sprite, is_not_mountain] = e;
+                if (/*game.state == Network.STATE.LOGIN && !is_not_mountain ||*/ game.renderer.inScreen(new Vector(x, y), 256 * scale + config.overdraw)) {
                     if (!e[7]) {
-                        sprite.visible = true;
+                        game.renderer.doodad_visibility(e, true);//sprite.visible = true;
                         e[7] = true;
 
                         if (!someFlag[doodadId]) {
                             someFlag[doodadId] = true;
-                            doodads.push([x, y, textureNameOrId, scale, doodadId, is_not_mountain]);
+                            doodads.push([x, y, textureNameOrId, scale, doodadId, is_not_mountain, rotation, , sprite]);
                         }
                     }
                 }
@@ -171,15 +175,17 @@ Mobs.updateDoodads = function () {
     for (let l = doodads.length - 1; l >= 0; l--) {
         const doodadId = doodads[l][4];
         const e = loadedDoodads[doodadId];
-        if (!Graphics.inScreen(new Vector(e[0], e[1]), 256 * e[3] + config.overdraw)) {
+        if (!game.renderer.inScreen(new Vector(e[0], e[1]), 256 * e[3] + config.overdraw)) {
             if (e[7]) {
-                e[8].visible = false;
+                game.renderer.doodad_visibility(e, false);//e[8].visible = false;
                 e[7] = false;
                 doodads.splice(l, 1);
                 delete someFlag[doodadId];
             }
         }
     }
+
+    return doodads;
 };
 
 Mobs.removeDoodads = function(remove_only_mountains, remove_only_id) {
@@ -190,8 +196,7 @@ Mobs.removeDoodads = function(remove_only_mountains, remove_only_id) {
             let [,,textureNameOrId,,,,,,sprite, is_not_mountain] = loaded[id];
             if (remove_only_mountains === true && is_not_mountain) continue;
             if (remove_only_mountains === false && !is_not_mountain) continue;
-            game.graphics.layers.doodads.removeChild(sprite);
-            sprite.destroy();
+            game.renderer.remove_doodad(loaded[id]);
             loaded[id] = null;
         }
     }
@@ -205,4 +210,9 @@ Mobs.removeDoodads = function(remove_only_mountains, remove_only_id) {
     }
 
     Tools.initBuckets(loadedDoodads);
+};
+
+Mobs.shadowCoords = function(e) {
+    var t = Mobs.getClosestDoodad(e);
+    return new Vector((e.x + config.shadowOffsetX * t) / config.shadowScaling,(e.y + config.shadowOffsetY * t) / config.shadowScaling)
 };

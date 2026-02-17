@@ -282,15 +282,11 @@ UI.getScoreString = function(e, t, n) {
     '<span id="alert-update" class="' + r + '">' + i + Math.abs(e) + "</span>"
 };
 
-var updateMinimapMob = function(minimapMob) {
-    minimapMob.sprite.position.set(game.screenX - config.minimapPaddingX - config.minimapSize * ((16384 - minimapMob.x) / 32768), game.screenY - config.minimapPaddingY - config.minimapSize / 2 * ((8192 - minimapMob.y) / 16384))
-};
-
 UI.wipeAllMinimapMobs = function() {
-    for (var playerId in minimapMobs)
-        game.graphics.layers.ui1.removeChild(minimapMobs[playerId].sprite),
-        minimapMobs[playerId].sprite.destroy(),
-        delete minimapMobs[playerId]
+    for (var playerId in minimapMobs) {
+        game.renderer.remove_minimap_mob(minimapMobs[playerId]);
+        delete minimapMobs[playerId];
+    }
 };
 
 UI.showSpectator = function(e) {
@@ -325,13 +321,6 @@ UI.resetPowerups = function() {
     $("#powerups").html("")
 };
 
-UI.changeMinimapTeam = function(playerId, team) {
-    if (null != minimapMobs[playerId] && null != minimapMobs[playerId].sprite) {
-        var r = 1 == team ? "minimapBlue" : "minimapMob";
-        minimapMobs[playerId].sprite.texture = Textures.getNamed(r)
-    }
-};
-
 UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
     var player;
     var livePlayerIdSet = {};
@@ -351,7 +340,7 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
                             mobTextureName = "minimapBlue";
                         }
                         minimapMobs[msgRankings[i].id] = {
-                            sprite: Textures.init(mobTextureName),
+                            sprite: game.renderer.add_minimap_mob(minimapMobs, mobTextureName),
                             x: miniMapPos.x,
                             y: miniMapPos.y
                         };
@@ -359,7 +348,7 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
                         minimapMobs[msgRankings[i].id].x = miniMapPos.x;
                         minimapMobs[msgRankings[i].id].y = miniMapPos.y;
                     }
-                    updateMinimapMob(minimapMobs[msgRankings[i].id]);
+                    game.renderer.updateMinimapMob(minimapMobs[msgRankings[i].id].sprite, minimapMobs[msgRankings[i].id].x, minimapMobs[msgRankings[i].id].y);
                 }
                 else {
                     let player = Players.get(msgRankings[i].id);
@@ -390,8 +379,7 @@ UI.scoreboardUpdate = function (msgData, msgRankings, maxScoreboard) {
 
     for (var id in minimapMobs) {
         if (null == livePlayerIdSet[id]) {
-            game.graphics.layers.ui1.removeChild(minimapMobs[id].sprite);
-            minimapMobs[id].sprite.destroy();
+            game.renderer.remove_minimap_mob(minimapMobs[id]);
             delete minimapMobs[id];
         }
     }
@@ -869,7 +857,7 @@ UI.controlKey = function(keyCode, bindName, alwaysTrue) {
                         Games.toggleGames();
                         break;
                     case "FULLSCREEN":
-                        Graphics.toggleFullscreen(),
+                        UI.toggleFullscreen(),
                         Input.clearKeys();
                         break;
                     case "MINIMIZECHAT":
@@ -924,114 +912,6 @@ UI.controlKey = function(keyCode, bindName, alwaysTrue) {
 
 UI.chatBoxOpen = function() {
     return isChatBoxVisible
-};
-
-UI.setupMinimap = function() {
-    if (game.graphics.gui.minimap) {
-        if (game.graphics.gui.minimap.mask) {
-            game.graphics.gui.minimap.removeChild(game.graphics.gui.minimap.mask);
-            game.graphics.gui.minimap.mask.destroy();
-        }
-        game.graphics.layers["ui0"].removeChild(game.graphics.gui.minimap);
-        game.graphics.gui.minimap.destroy();
-    }
-    game.graphics.gui.minimap = Textures.init("minimap");
-    if (!game.graphics.gui.minimap_box)
-        game.graphics.gui.minimap_box = Textures.init("minimapBox");
-    UI.resizeMinimap();
-    UI.visibilityMinimap(game.state === Network.STATE.PLAYING);
-};
-
-UI.visibilityMinimap = function(isVisible) {
-    game.graphics.gui.minimap.visible = isVisible,
-    game.graphics.gui.minimap_box.visible = isVisible
-};
-
-UI.resizeMinimap = function() {
-    game.graphics.gui.minimap.scale.set(config.minimapSize / 512),
-    game.graphics.gui.minimap.position.set(game.screenX - config.minimapPaddingX, game.screenY - config.minimapPaddingY),
-    game.graphics.gui.minimap_box.scale.set(.03 + 2 * config.minimapSize * (game.screenX / game.scale / 32768) / 64, .03 + config.minimapSize * (game.screenY / game.scale / 16384) / 64);
-    for (var playerId in minimapMobs)
-        updateMinimapMob(minimapMobs[playerId]);
-    Games.update(true)
-};
-
-UI.maskMinimap = function() {
-    if (!game.graphics.gui.minimap)
-        return;
-
-    // mask
-    if (game.graphics.gui.minimap.mask) {
-        game.graphics.gui.minimap.removeChild(game.graphics.gui.minimap.mask);
-        game.graphics.gui.minimap.mask.destroy();
-    }
-    const w = 512, h = 256; // minimap texture size: 512x256
-    const half_w = w/2, half_h = h/2;
-    const bounds = game.server.config.mapBounds;
-    const new_x = (bounds.MIN_X/ 16384)*half_w - half_w; //coords from -512 to 0
-    const new_y = (bounds.MIN_Y/ 8192)*half_h - half_h;  //coords from -256 to 0
-    const new_w = ((bounds.MAX_X - bounds.MIN_X)/32768)*w; 
-    const new_h = ((bounds.MAX_Y - bounds.MIN_Y)/16384)*h;
-    const mask = new PIXI.Graphics();
-    mask.beginFill(0xFFFFFF);
-    mask.drawRect(new_x, new_y, new_w, new_h);
-    mask.endFill();
-    game.graphics.gui.minimap.mask = mask;
-    game.graphics.gui.minimap.addChild(mask);
-
-    // zoom in
-    const f = 512/240;//2.1333; // todo: remove hardcoded 240
-    const zoom = Math.min(4, Math.min(w/new_w, h/new_h));
-    config.minimapSize = 240 * zoom;
-
-    // translate to the center of the bottom right rect(240*120)
-    const new_center_w = ((w+new_x)+new_w/2)*zoom;
-    const new_center_h = ((h+new_y)+new_h/2)*zoom;
-    const old_center_w = w*zoom - half_w;
-    const old_center_h = h*zoom - half_h;
-    config.minimapPaddingX = 16 + (new_center_w - old_center_w)/f;
-    config.minimapPaddingY = 16 + (new_center_h - old_center_h)/f;
-
-    UI.resizeMinimap();
-};
-
-UI.setupHUD = function() {
-    game.graphics.gui.hudHealth_shadow = Textures.init("hudHealth_shadow"),
-    game.graphics.gui.hudHealth = Textures.init("hudHealth"),
-    game.graphics.gui.hudHealth_mask = Textures.init("hudHealth_mask"),
-    game.graphics.gui.hudHealth_mask.blendMode = PIXI.BLEND_MODES.LUMINOSITY,
-    game.graphics.gui.hudHealth.rotation = -1.5,
-    game.graphics.gui.hudHealth.position.set(330, 174),
-    game.graphics.gui.hudHealth_mask.position.set(330, 174),
-    game.graphics.gui.hudEnergy_shadow = Textures.init("hudEnergy_shadow"),
-    game.graphics.gui.hudEnergy = Textures.init("hudEnergy"),
-    game.graphics.gui.hudEnergy_mask = Textures.init("hudEnergy_mask"),
-    game.graphics.gui.hudEnergy_mask.blendMode = PIXI.BLEND_MODES.LUMINOSITY,
-    game.graphics.gui.hudEnergy.position.set(-250, 174),
-    game.graphics.gui.hudEnergy_mask.position.set(-250, 174),
-    UI.resizeHUD(),
-    UI.visibilityHUD(false)
-};
-
-UI.visibilityHUD = function(e) {
-    game.graphics.gui.hudHealth_shadow.visible = e,
-    game.graphics.gui.hudHealth.visible = e,
-    game.graphics.gui.hudEnergy_shadow.visible = e,
-    game.graphics.gui.hudEnergy.visible = e
-};
-
-UI.resizeHUD = function() {
-    var e = 0.5 * game.scale,
-        t = game.halfScreenX - 30 * game.scale,
-        n = game.halfScreenX + 30 * game.scale;
-    game.graphics.gui.hudHealth_shadow.scale.set(e),
-    game.graphics.gui.hudEnergy_shadow.scale.set(e),
-    game.graphics.gui.hudHealth_shadow.position.set(t, game.halfScreenY),
-    game.graphics.gui.hudEnergy_shadow.position.set(n, game.halfScreenY),
-    game.graphics.gui.hudSpriteHealth.scale.set(e),
-    game.graphics.gui.hudSpriteHealth.position.set(t, game.halfScreenY),
-    game.graphics.gui.hudSpriteEnergy.scale.set(e),
-    game.graphics.gui.hudSpriteEnergy.position.set(n, game.halfScreenY)
 };
 
 UI.setupAircraft = function() {
@@ -1185,18 +1065,6 @@ UI.showCommandReply = function(e) {
                 "</pre></div>";
         $("body").append('<div id="debugpopup" oncontextmenu="event.stopPropagation()">' + n + "</div>")
     }
-};
-
-UI.updateHUD = function(e, t, n) {
-    if (n && !config.ships[n.type]) return;
-    e = Tools.clamp(e, 0, 1),
-    t = Tools.clamp(t, 0, 1),
-    game.graphics.gui.hudHealth.rotation = -1.1 * (1 - e),
-    game.graphics.gui.hudEnergy.rotation = Math.PI + 1.1 * (1 - t),
-    game.graphics.gui.hudHealth.tint = e > .5 ? Tools.colorLerp(13487404, 2591785, 2 * (e - .5)) : Tools.colorLerp(12201261, 13487404, 2 * e);
-    var r = 3374821;
-    n && (r = t < config.ships[n.type].energyLight ? 2841755 : 3374821),
-    game.graphics.gui.hudEnergy.tint = r
 };
 
 UI.minimizeChat = function(e) {
@@ -1898,7 +1766,7 @@ UI.gameStart = function(playerName, isFirstTime) {
 
 var setupMobile = function() {
     setupMobileUI(),
-    Graphics.toggleFullscreen(),
+    UI.toggleFullscreen(),
     Input.setupTouch()
 };
 
@@ -1940,10 +1808,10 @@ UI.loggedIn = function(e) {
     const nameShort = Games.getCurrentServer().nameShort && Games.getCurrentServer().nameShort != 'undefined' ? Games.getCurrentServer().nameShort : Games.getCurrentServer().name;
     $("#roomname").html(game.roomName),
     $("#scoreheader").html(game.roomName + "&nbsp;&nbsp;"),
-    $("#open-menu").html('<span class="arrowdown"></span>' + nameShort + '&nbsp;&nbsp;<span class="region">&bull;&nbsp;&nbsp;' + Games.getCurrentServer().region_name + "</span>"),
-    UI.visibilityHUD(true),
-    UI.visibilityMinimap(true),
-    UI.updateHUD(1, 1)
+    $("#open-menu").html('<span class="arrowdown"></span>' + nameShort + '&nbsp;&nbsp;<span class="region">&bull;&nbsp;&nbsp;' + Games.getCurrentServer().region_name + "</span>");
+    game.renderer.visibilityHUD(true);
+    game.renderer.visibilityMinimap(true);
+    game.renderer.updateHUD(1, 1);
 };
 
 UI.popTooltip = function(e, t) {
@@ -2052,11 +1920,11 @@ UI.setup = function() {
         game.state == Network.STATE.PLAYING && (UI.openScore(),
         e.stopPropagation())
     }),
-    $("#mainmenu-fullscreen").on("click", Graphics.toggleFullscreen),
+    $("#mainmenu-fullscreen").on("click", UI.toggleFullscreen),
     $("#mainmenu-invite").on("click", UI.openInvite),
     $("#mainmenu-score").on("click", UI.openScore),
     $("#mainmenu-game").on("click", Games.popGames),
-    $("#mainmenu-hidpi").on("click", Graphics.toggleHiDPI),
+    $("#mainmenu-hidpi").on("click", UI.toggleHiDPI),
     $("#mainmenu-sound").on("click", Sound.toggle),
     config.mobile ? ($("#mainmenu-keybinds-text").html("<br>How To Play"),
     $("#mainmenu-keybinds").on("click", UI.toggleHelp),
@@ -2125,15 +1993,15 @@ UI.setup = function() {
     $("#playername").on("keypress", function(e) {
         13 === e.which && UI.nameEntered()
     }),
-    window.onerror = function(e, t, n, r, i) {
-        game.state !== Network.STATE.PLAYING && game.state !== Network.STATE.CONNECTING || Tools.handleError({
-            msg: e,
-            url: t,
-            lineNo: n,
-            columnNo: r,
-            error: i
-        })
-    }
+    // window.onerror = function(e, t, n, r, i) {
+    //     game.state !== Network.STATE.PLAYING && game.state !== Network.STATE.CONNECTING || Tools.handleError({
+    //         msg: e,
+    //         url: t,
+    //         lineNo: n,
+    //         columnNo: r,
+    //         error: i
+    //     })
+    // }
 
     UI.createScaleSlider();
     UI.hideScaleSlider();
@@ -2269,11 +2137,24 @@ UI.capScalingFactor = function(zoom) {
     return Math.min(SCALE_MAX, Math.max(SCALE_MIN, zoom));
 };
 
+UI.modifyConfigIfMobile = function() {
+    if (config.mobile) {
+        var e = game.screenX > game.screenY ? "landscape" : "portrait";
+        config.phone = game.screenX <= 599 && "portrait" == e || game.screenY <= 599 && "landscape" == e,
+        config.tablet = game.screenX >= 600 && game.screenX <= 1024 && "portrait" == e || game.screenY >= 600 && game.screenY <= 1024 && game.screenX <= 1024 && "landscape" == e,
+        config.maxScoreboard = 8,
+        config.phone && (config.minimapSize = 160,
+        config.maxScoreboard = 5),
+        config.tablet && (config.maxScoreboard = 7),
+        config.minimapPaddingX = game.screenX / 2 - config.minimapSize / 2
+    }
+};
+
 UI.scheduleGraphicsResize = function(delay) {
     clearTimeout(delayedGraphicsResizeTimer);
     delayedGraphicsResizeTimer = setTimeout(function()
     {
-        Graphics.resizeRenderer(window.innerWidth, window.innerHeight)
+        game.renderer.resize(window.innerWidth, window.innerHeight);
     }, delay || 0);
 };
 
@@ -2331,4 +2212,27 @@ UI.onScaleKnobMouseUp = function(event) {
         console.log('drag end', event);
         scaleIsDragging = false;
     }
+};
+
+UI.toggleFullscreen = function() {
+    !function() {
+        var e = document;
+        return e.fullscreenElement ? null !== e.fullscreenElement : e.mozFullScreenElement ? null !== e.mozFullScreenElement : e.webkitFullscreenElement ? null !== e.webkitFullscreenElement : e.msFullscreenElement ? null !== e.msFullscreenElement : void 0
+    }() ? function() {
+        var e = document.documentElement;
+        if (e.requestFullscreen ? e.requestFullscreen() : e.mozRequestFullScreen ? e.mozRequestFullScreen() : e.webkitRequestFullscreen ? e.webkitRequestFullscreen() : e.msRequestFullscreen && e.msRequestFullscreen(),
+        config.mobile && null != window.screen && null != window.screen.orientation)
+            try {
+                screen.orientation.lock("landscape")
+            } catch (e) {}
+    }() : function() {
+        var e = document;
+        e.exitFullscreen ? e.exitFullscreen() : e.mozCancelFullScreen ? e.mozCancelFullScreen() : e.webkitExitFullscreen ? e.webkitExitFullscreen() : e.msExitFullscreen && e.msExitFullscreen()
+    }()
+};
+
+UI.toggleHiDPI = function() {
+    Tools.setSettings({ hidpi: !config.settings.hidpi }),
+    UI.updateMainMenuSettings(),
+    1 == config.oldhidpi == config.settings.hidpi ? UI.showMessage("alert", "", 1e3) : UI.showMessage("alert", 'Reload game to apply HiDPI settings<br><span class="button" onclick="Games.redirRoot()">RELOAD</span>', 1e4)
 };

@@ -6,24 +6,50 @@ var playersById = {},
     n = ["badge_gold", "badge_silver", "badge_bronze"];
 
 Players.update = function() {
-    var t, n;
-    for (t in playersById)
-        0 == (n = playersById[t]).status && (n.update(game.timeFactor),
-        n.updateGraphics(game.timeFactor));
+    var n;
+    const all_players = [], visible_players = [], visible_objects_count = {thrusters:0, rotors:0, playernames_glyphs: 0, badges: 0, levels: 0, levels_glyphs: 0};
+    let me_idx = null;
+    for (const id in playersById) {
+        const player = playersById[id];
+        all_players.push(player);
+        if (player.status == 0) {
+            player.update(game.timeFactor);
+            player.updateGraphics(game.timeFactor);
+            if (player.render) {
+                if (config.ships[player.type]) {
+                    visible_players.push(player);
+                    const {graphics:{thrusters, rotors}} = config.ships[player.type];
+                    if (thrusters?.length && Math.abs(player.state.thrustLevel) > 0.01)
+                        visible_objects_count.thrusters += thrusters.length;
+                    visible_objects_count.rotors += rotors?.length || 0;
+                    visible_objects_count.playernames_glyphs += Math.min(20, player.name_length);//MAX_PLAYER_NAME_GLYPHS
+                    visible_objects_count.badges += player.state.hasBadge ? 1 : 0;
+                    if (player.level != null || player.bot) {
+                        visible_objects_count.levels_glyphs += player.bot ? 3 : (''+player.level).length;
+                        visible_objects_count.levels++;
+                    }
+                    if (player.me()) me_idx = visible_players.length - 1;
+                }
+            }
+        }
+    }
+    if (me_idx !== null) // put me at the end
+        [visible_players[me_idx], visible_players[visible_players.length-1]] = [visible_players[visible_players.length-1], visible_players[me_idx]];
     if (null != game.spectatingID) {
         if (null == (n = playersById[game.spectatingID]))
-            return;
+            return {visible_players, visible_objects_count};
         if (game.timeNetwork - n.lastPacket > 3e3)
-            return;
-        Graphics.setCamera(n.pos.x, n.pos.y)
+            return {visible_players, visible_objects_count};
+        game.renderer.setCamera(n.pos.x, n.pos.y)
     } else if (null != game.myID) {
         if (null == (n = playersById[game.myID]))
-            return;
+            return {visible_players, visible_objects_count};
         if (0 == n.status)
-            UI.updateHUD(n.health, n.energy, n);
+            game.renderer.updateHUD(n.health, n.energy, n);
         if (!game.freeCamera)
-            Graphics.setCamera(n.pos.x, n.pos.y);
+            game.renderer.setCamera(n.pos.x, n.pos.y);
     }
+    return {all_players, visible_players, visible_objects_count};
 };
 
 Players.add = function(player, fromLogin) {
@@ -193,7 +219,7 @@ Players.kill = function(msg) {
     if (msg.killer != 0 || msg.posX != 0 || msg.posY != 0) {
         player.kill(msg);
         if (player.me()) {
-            UI.visibilityHUD(false);
+            game.renderer.visibilityHUD(false);
             let killer = playersById[msg.killer];
             if (killer) {
                 UI.killedBy(killer);
@@ -213,7 +239,7 @@ Players.kill = function(msg) {
             posY: 0,
             spectate: true
         });
-        UI.visibilityHUD(false);
+        game.renderer.visibilityHUD(false);
         UI.updateGameInfo();
     }
 };
@@ -226,7 +252,7 @@ Players.destroy = function(id) {
 
     let player = playersById[id];
     if (player != null) {
-        player.destroy(true);
+        player.destroy();
         delete playersById[id];
 
         if (game.state === Network.STATE.PLAYING) {
@@ -290,7 +316,7 @@ Players.categoryCounts = function() {
 
 Players.wipe = function() {
     for (let id in playersById) {
-        playersById[id].destroy(true);
+        playersById[id].destroy();
         delete playersById[id];
     }
 };
@@ -320,7 +346,7 @@ Players.updateFFATeams = function() {
 
             if (game.force_update_teams || (player.in_team != prev_in_team || player.in_my_team != prev_in_my_team)) {
                 player.sprites.name.style = new PIXI.TextStyle(player.nameplateTextStyle());
-                UI.changeMinimapTeam(player.id, player.in_my_team ? 1 : player.team);
+                game.renderer.changeMinimapTeam(player.id, player.in_my_team ? 1 : player.team);
             }
         }                
     }
